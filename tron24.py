@@ -6,7 +6,6 @@ from operator import mul, truediv, itemgetter
 UP, RIGHT, DOWN, LEFT, END = (0, -1), (1, 0), (0, 1), (-1, 0), (0, 0)
 DIR = {UP: 'UP', RIGHT: 'RIGHT', DOWN: 'DOWN', LEFT: 'LEFT', END: 'END'}
 W, H = 30, 20
-Ox, Oy, Px, Py = 0, 0, 0, 0
 BOARD = [[0 for _ in range(W)] for _ in range(H)]
 ID_START = 10001
 HEADS, HEADS_F = {}, {}
@@ -40,10 +39,6 @@ def read_stdin():
 
 def in_board(x, y):
     return 0 <= x < W and 0 <= y < H
-
-
-def in_board_mini(x, y):
-    return Ox <= x < Px and Oy <= y < Py
 
 
 def is_clean(board, x, y):
@@ -117,19 +112,23 @@ def fill_board():
                     board_fill[yy][xx] = (dist, pid)
                     points.add((xx, yy))
                 elif type(value) == tuple:
-                    if (dist, pid) < value:
+                    value2, qid = value
+                    if dist < value2:
                         points.add((xx, yy))
                         board_fill[yy][xx] = (dist, pid)
-    if DEBUG:
-        for row in board_fill:
-            for cell in row:
-                if type(cell) == tuple:
-                    sys.stderr.write('{0: >5}'.format(cell[0]))
-                else:
-                    sys.stderr.write('{0: >5}'.format(cell))
-            sys.stderr.write('\n')
-        print >> sys.stderr, time() - START
-        print >> sys.stderr, 'fill_board'
+                    elif pid != qid and dist == value2:
+                        points.add((xx, yy))
+                        board_fill[yy][xx] = (dist, pid)
+    # if DEBUG:
+        # for row in board_fill:
+            # for cell in row:
+                # if type(cell) == tuple:
+                    # sys.stderr.write('{0: >5}'.format(cell[0]))
+                # else:
+                    # sys.stderr.write('{0: >5}'.format(cell))
+            # sys.stderr.write('\n')
+        # print >> sys.stderr, time() - START
+        # print >> sys.stderr, 'fill_board'
     return board_fill
 
 
@@ -193,9 +192,9 @@ def flood_count(board_fill, x, y, hf=False):
                 # board_copy[yy][xx] = count
                 points.add((xx, yy))
 
-                dist = distance2(x, y, xx, yy)
                 dist2 = board_fill[yy][xx]
                 if type(dist2) == tuple:
+                    dist = distance2(x, y, xx, yy)
                     value2, pid = dist2
                     if dist < ratio * value2:
                         count += 1
@@ -278,79 +277,58 @@ def flood_fill(board_fill, x, y, move, ww=None, hh=None):
     return count
 
 
-def limit_rect(x, y):
-    w, h = 20, 20
-    o1 = max(0, x - w // 2)
-    o2 = min(W, o1 + w)
-    p1 = max(0, y - h // 2)
-    p2 = min(H, p1 + h)
-    return o1, o2, p1, p2
-
-
-def __default_move(board_copy, x, y):
-    def dist_poses(cd):
-        return distance3(x, y, *cd)
-    paths = deque(maxlen=1)
-    max_flood = 0
-    points = [[(x, y)]]
-
-    while points:
-        newpoints = []
-        for point in points:
-            if time() - START > 0.09:
-                break
-            c, d = point[-1]
-
-            value1 = board_copy[d][c]
-            if (x, y) == (c, d):
-                value1 = 0
-            elif value1 >= max_flood:
-                paths.append(point)
-                max_flood = value1
-
-            next_poses = [next_pos(c, d, UP), next_pos(c, d, RIGHT),
-                    next_pos(c, d, DOWN), next_pos(c, d, LEFT)]
-            next_poses.sort(key=dist_poses)
-
-            for (xx, yy) in next_poses:
-                # print >> sys.stderr, '  ', (xx, yy), is_clean(board_copy, xx, yy), board_copy[yy][xx] if in_board_mini(xx, yy) else 'NaN'
-                if in_board_mini(xx, yy) and (xx, yy) not in point:
-                    value2 = board_copy[yy][xx]
-                    # if 0 <= value2 < ID_START and (value1 == 0 or value1 + 1 >= value2):
-                    if 0 <= value2 < ID_START and (value1 == 0 or value1 >= value2):
-                        board_copy[yy][xx] = value1 + 1
-                        newpoints.append(point + [(xx, yy)])
-
-        points = newpoints
-    return paths
-
 
 def default_move(x, y):
-    board_copy = copy.deepcopy(BOARD)
-    paths = __default_move(board_copy, x, y)
-    if paths:
-        path = paths[-1]
-    else:
-        print >> sys.stderr, 'default_move', None
+    # move_map
+    move_map = {
+            UP:    max_move(x, y, UP),
+            RIGHT: max_move(x, y, RIGHT),
+            DOWN:  max_move(x, y, DOWN),
+            LEFT:  max_move(x, y, LEFT) }
+    move_dirs  = sorted(move_map.items(), key=itemgetter(1), reverse=True)
+    move_dirs = tuple(k for k, v in move_dirs if v > 0)
+
+    print >> sys.stderr, 'default_move: move_dirs', move_dirs
+
+    # move_dirs == 0
+    if len(move_dirs) == 0:
         return None
 
-    if DEBUG:
-        for p in paths:
-            board_tmp = copy.deepcopy(BOARD)
-            i = 0
-            for xx, yy in p:
-                board_tmp[yy][xx] = i if i else -1
-                i += 1
-            for row in board_tmp:
-                for cell in row:
-                    sys.stderr.write('{0: >5}'.format(cell))
-                sys.stderr.write('\n')
-            print >> sys.stderr, time() - START
+    # move_dirs == 1
+    elif len(move_dirs) == 1:
+        return move_dirs[0]
 
-    c, d = path[1]
-    xx, yy = path[-1]
-    print >> sys.stderr, 'default_move', board_copy[yy][xx], DIR[(c - x, d - y)]
-    return (c - x, d - y)
+
+    move = None
+    flood_map = dict()
+    neighbors = dict()
+    board_copy = copy.deepcopy(BOARD)
+
+    for move in move_dirs:
+        c, d = next_pos(x, y, move)
+        board_copy[d][c] = ID_START + 10
+        flood_map[move] = flood_count(board_copy, c, d)
+        neighbors[move] = len(neighbors_clean(board_copy, c, d))
+        board_copy[d][c] = 0
+    print >> sys.stderr, 'default_move: flood_map', flood_map
+    print >> sys.stderr, 'default_move: neighbors', neighbors
+
+    flood_dirs = sorted(flood_map.items(), key=itemgetter(1))
+    max_flood = flood_dirs[-1][1]
+    flood_dirs = [k for k, v in flood_dirs if v == max_flood]
+    print >> sys.stderr, 'default_move: flood_dirs', flood_dirs
+
+    # flood_dirs == 1
+    if len(flood_dirs) == 1:
+        move = flood_dirs[0]
+
+    else:
+        flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
+        flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
+        move = flood_dirs[0]
+
+    print >> sys.stderr, 'default_move: move', x, y, move
+    return move
 
 
 def __best_dest(x, y, hx, hy, limit):
@@ -408,7 +386,7 @@ def distance2(x, y, c, d):
     return 10 * (abs(x - c)**2 + abs(y - d)**2)
 
 def distance3(x, y, c, d):
-    return max(abs(x - c), abs(y - d))
+    return (abs(x - c)**2 + abs(y - d)**2)**0.5
 
 def p(l):
     import sys
@@ -515,7 +493,7 @@ def head_min(x, y):
             ax, ay = last_pos(x, y)
             dist3 = distance2(ax, ay, px, py)
             if dist3 == 10:
-                move = dirs[0]
+                move = floods_move
             if dist3 == 50:
                 move = floods_move
 
@@ -604,7 +582,6 @@ if __name__ == '__main__':
     # mx, my = 3, 2
     # HEADS[1002] = (9, 4)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
     # BOARD[0] = [   0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -621,7 +598,6 @@ if __name__ == '__main__':
     # mx, my = 5, 0
     # HEADS[1002] = (5, 9)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
     # BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1001, 1001, 1001, 1001]
@@ -638,7 +614,6 @@ if __name__ == '__main__':
     # mx, my = 11, 5
     # HEADS[1002] = (12, 3)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
     # BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -655,7 +630,6 @@ if __name__ == '__main__':
     # mx, my = 0, 4
     # HEADS[1002] = (1, 6)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
 
@@ -673,7 +647,6 @@ if __name__ == '__main__':
     # mx, my = 5, 6
     # HEADS[1002] = (4, 6)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
 
@@ -691,7 +664,6 @@ if __name__ == '__main__':
     # mx, my = 3, 4
     # HEADS[1002] = (2, 5)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
     # BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -708,7 +680,6 @@ if __name__ == '__main__':
     # mx, my = 1, 4
     # HEADS[1002] = (0, 5)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
 
@@ -726,7 +697,6 @@ if __name__ == '__main__':
     # mx, my = 10, 7
     # HEADS[1002] = (14, 4)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
     # BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -745,7 +715,6 @@ if __name__ == '__main__':
     # HEADS[1003] = (9, 6)
     # LASTMOVE = RIGHT
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
     # BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -762,7 +731,6 @@ if __name__ == '__main__':
     # mx, my = 0, 3
     # HEADS[1002] = (0, 6)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
     # BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -779,7 +747,6 @@ if __name__ == '__main__':
     # mx, my = 1, 4
     # HEADS[1002] = (0, 6)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
 
@@ -797,7 +764,6 @@ if __name__ == '__main__':
     # mx, my = 0, 4
     # HEADS[1002] = (7, 2)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
 
@@ -816,7 +782,6 @@ if __name__ == '__main__':
     # mx, my = 3, 9
     # HEADS[1002] = (1, 8)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
 
@@ -834,7 +799,6 @@ if __name__ == '__main__':
     # mx, my = 12, 9
     # HEADS[1002] = (8, 6)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
     # BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -851,7 +815,6 @@ if __name__ == '__main__':
     # mx, my = 2, 6
     # HEADS[1002] = (4, 5)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 #
     # BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0]
@@ -869,7 +832,6 @@ if __name__ == '__main__':
     # LASTMOVE = (-1, 0)
     # HEADS[1002] = (6, 4)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
     # BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0]
@@ -887,27 +849,56 @@ if __name__ == '__main__':
     # LASTMOVE = (-1, 0)
     # HEADS[1002] = (6, 7)
     # HEADS_F = {}
-    # Ox, Px, Oy, Py = limit_rect(mx, my)
     # best_move_fast(mx, my)
 
-    W, H = 30, 20
-    BOARD = [[0 for _ in range(W)] for _ in range(H)]
-    BOARD[14][3] = 1002
-    BOARD[14][4] = 1002
-    BOARD[15][4] = 1001
-    BOARD[15][3] = 1001
-    BOARD[15][2] = 1001
-    BOARD[18][0] = 1003
-    BOARD[18][1] = 1003
-    START = time()
-    mx, my = 4, 14
-    LASTMOVE = (1, 0)
-    HEADS[1001] = (2, 15)
-    HEADS[1003] = (1, 18)
-    HEADS_F = {}
-    Ox, Px, Oy, Py = limit_rect(mx, my)
-    best_move_fast(mx, my)
+    # W, H = 30, 20
+    # BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    # BOARD[14][3] = 1002
+    # BOARD[14][4] = 1002
+    # BOARD[15][4] = 1001
+    # BOARD[15][3] = 1001
+    # BOARD[15][2] = 1001
+    # BOARD[18][0] = 1003
+    # BOARD[18][1] = 1003
+    # START = time()
+    # mx, my = 4, 14
+    # LASTMOVE = (1, 0)
+    # HEADS[1001] = (2, 15)
+    # HEADS[1003] = (1, 18)
+    # HEADS_F = {}
+    # best_move_fast(mx, my)
 
+    # BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0,    0]
+    # BOARD[1] = [1001, 1001, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    # BOARD[2] = [   0,    0,    0,    0,    0,    0, 1001, 1001, 1001, 1001, 1001, 1001,    0,    0,    0]
+    # BOARD[3] = [   0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0, 1001,    0,    0]
+    # BOARD[4] = [   0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0, 1001,    0,    0]
+    # BOARD[5] = [   0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0, 1001,    0,    0]
+    # BOARD[6] = [   0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0, 1001,    0,    0]
+    # BOARD[7] = [   0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0, 1001,    0,    0]
+    # BOARD[8] = [   0,    0,    0,    0,    0,    0, 1001, 1001, 1001, 1001, 1001, 1001, 1001,    0,    0]
+    # BOARD[9] = [   0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0,    0,    0]
+    # START = time()
+    # mx, my = 12, 3
+    # HEADS_F = {}
+    # DM = list()
+    # best_move_fast(mx, my)
+
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [1001, 1001, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0, 1001, 1001, 1001, 1001, 1001, 1001,    0,    0,    0]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0, 1001,    0,    0]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0, 1001,    0,    0]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0, 1001,    0,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0, 1001,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0, 1001, 1001, 1001, 1001, 1001, 1001, 1001,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    START = time()
+    mx, my = 12, 3
+    HEADS_F = {}
+    DM = list()
+    best_move_fast(mx, my)
 
     # - Is there a snake or wall directly in front of me? If so, turn into the area [left or right]
     # with the most open space.
