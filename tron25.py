@@ -372,7 +372,7 @@ def head_min(x, y):
         dirs = tuple(e for e in (ex, ey) if e != (0, 0))
         print >> sys.stderr, 'PID', [DIR[dir] for dir in dirs], pid, ',', dist2
 
-        if 80 < dist2 < 5000:
+        if 50 < dist2 < 5000:
             move = best_dest(x, y, px, py)
             print >> sys.stderr, '130 < dist2 < 5000', dir_move(move)
 
@@ -393,7 +393,18 @@ def head_min(x, y):
             if dist3 == 50:
                 move = floods_move
 
-        elif dist2 <= 80:
+        elif dist2 == 40:
+            if len(dirs) == 1:
+                dir0 = dirs[0]
+                if flood_map[dir0] == floods_move:
+                    move = floods_move
+                elif dir0 in flood_dirs:
+                    move = dir0
+            print >> sys.stderr, 'dist2 == 40', dir_move(move)
+
+
+        # elif dist2 <= 50:
+        if move is None:
             if LEFT in flood_dirs and RIGHT in dirs:
                 if flood_map[RIGHT] > flood_map[LEFT]: move = RIGHT
             elif RIGHT in flood_dirs and LEFT in dirs:
@@ -417,7 +428,7 @@ def head_min(x, y):
             if move is None:
                 move = floods_move
 
-            print >> sys.stderr, 'dist2 <= 80', dir_move(move)
+            print >> sys.stderr, 'dist2 <= 50', dir_move(move)
 
         if move is None: continue
         if move == floods_move: break
@@ -436,16 +447,22 @@ def head_min(x, y):
                 move = floods_move
                 print >> sys.stderr, 'D', dir_move(move)
             else:
-                next_flood = flood_fill(board_fill, c, d, move)
-                print >> sys.stderr, 'B', next_flood, '<', flood_map[move]
-                if next_flood < flood_map[move] or flood_map[move] < 10:
+                board_fill[d][c] = ID_START + 10
+                next_flood = flood_count(board_fill, c, d)
+                print >> sys.stderr, 'E', next_flood, '<', flood_map[move]
+                if next_flood < flood_map[floods_move]:
+                    move = floods_move
+                if next_flood < flood_map[move]:
                     move = floods_move
             print >> sys.stderr, 'len(ngb) == 1', dir_move(move)
 
         else:
-            next_flood = flood_fill(board_fill, c, d, move)
+            board_fill[d][c] = ID_START + 10
+            next_flood = flood_count(board_fill, c, d)
             print >> sys.stderr, 'E', next_flood, '<', flood_map[move]
-            if next_flood < flood_map[move] or flood_map[move] < 10:
+            if next_flood < flood_map[floods_move]:
+                move = floods_move
+            if next_flood < flood_map[move]:
                 move = floods_move
             print >> sys.stderr, 'len(ngb) == 2', dir_move(move)
 
