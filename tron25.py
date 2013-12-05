@@ -109,7 +109,7 @@ def fill_board():
                 if (xx, yy) in points:
                     continue
                 value = board_fill[yy][xx]
-                dist = distance2(px, py, xx, yy)
+                dist = distance3(px, py, xx, yy)
                 if value == 0:
                     dest = best_dest(px, py, xx, yy, limit=dist)
                     if dest:
@@ -143,7 +143,7 @@ def flood_count(board_fill, x, y, hf=False):
 
                 dist2 = board_fill[yy][xx]
                 if type(dist2) == tuple:
-                    dist = distance2(x, y, xx, yy)
+                    dist = distance3(x, y, xx, yy)
                     value2, pid = dist2
                     if dist < ratio * value2:
                         count += 1
@@ -185,7 +185,7 @@ def flood_fill(board_fill, x, y, move, ww=None, hh=None):
 
                 value = board_copy[yy][xx]
                 if value == 0:
-                    dist = distance2(x, y, xx, yy)
+                    dist = distance3(x, y, xx, yy)
                     dist2 = board_fill[yy][xx]
 
                     if type(dist2) == tuple:
@@ -291,7 +291,8 @@ def distance2(x, y, c, d):
     return 10 * (abs(x - c)**2 + abs(y - d)**2)
 
 def distance3(x, y, c, d):
-    return (abs(x - c)**2 + abs(y - d)**2)**0.5
+    return 33 * (abs(x - c)**2 + abs(y - d)**2)**0.5
+
 
 def directions(x, y):
     dx = (   0 if x == 0 else 1 if x > 0 else -1 , 0)
@@ -451,7 +452,7 @@ def head_min(x, y):
                 if flood_map[DOWN] > flood_map[UP]: move = DOWN
             elif DOWN in flood_dirs and UP in dirs:
                 if flood_map[DOWN] < flood_map[UP]: move = UP
-# #
+
             if not move is None:
                 pass
             elif LEFT in flood_dirs and LEFT in dirs:
