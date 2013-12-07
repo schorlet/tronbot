@@ -196,7 +196,7 @@ def flood_fill(board_fill, x, y, move, ww=None, hh=None):
     board_copy = copy.deepcopy(BOARD)
     if is_clean(board_copy, c, d):
         count += 1
-        board_copy[d][c] = 10
+        board_copy[d][c] = 1
         points = {(c, d)}
 
         while points:
@@ -390,20 +390,30 @@ def head_min(x, y):
         return None
 
     # flood_map
-    flood_map = {
-            UP:    flood_fill(board_fill, x, y, UP),
-            RIGHT: flood_fill(board_fill, x, y, RIGHT),
-            DOWN:  flood_fill(board_fill, x, y, DOWN),
-            LEFT:  flood_fill(board_fill, x, y, LEFT) }
+    flood_map = dict()
+    next_map = dict()
 
-    flood_dirs = sorted(flood_map.items(), key=itemgetter(1), reverse=True)
-    flood_dirs = tuple(k for k, v in flood_dirs if v > 0)
+    for dir in move_dirs:
+        flood_map[dir] = flood_fill(board_fill, x, y, dir)
+        c, d = next_pos(x, y, dir)
+        board_fill[d][c] = ID_START + 10
+        next_map[dir] = flood_count(board_fill, c, d)
+        board_fill[d][c] = 0
+
+    flood_dirs = [dir for dir in move_dirs]
+    flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
+    flood_dirs.sort(key=lambda x: next_map[x], reverse=True)
 
     if DEBUG:
         print >> sys.stderr, 'flood_map [',
         for k, v in flood_map.iteritems():
             print >> sys.stderr, '(%d, %s),' % (v, DIR[k]),
         print >> sys.stderr, ']'
+        print >> sys.stderr, 'next_map [',
+        for k, v in next_map.iteritems():
+            print >> sys.stderr, '(%d, %s),' % (v, DIR[k]),
+        print >> sys.stderr, ']'
+
 
     # flood_dirs == 0
     if len(flood_dirs) == 0:
@@ -476,20 +486,6 @@ def head_min(x, y):
                     move = floods_move
                 else:
                     move = floods_move
-                    # next_map = {}
-                    # for dir in flood_dirs:
-                        # c, d = next_pos(x, y, dir)
-                        # board_fill[d][c] = ID_START + 10
-                        # next_map[dir] = flood_count(board_fill, c, d)
-                        # board_fill[d][c] = 0
-#
-                    # print >> sys.stderr, 'dist2 == 20: next_map', next_map
-#
-                    # next_dirs = sorted(flood_dirs, key=lambda x: next_map[x])
-                    # print >> sys.stderr, 'dist2 == 20: next_dirs', next_dirs
-                    # next_dirs = sorted(flood_dirs, key=lambda x: flood_map[x])
-                    # print >> sys.stderr, 'dist2 == 20: next_dirs', next_dirs
-                    # move = next_dirs[-1]
 
             print >> sys.stderr, 'dist2 == 20', dist3, dir_move(move)
 
@@ -497,51 +493,28 @@ def head_min(x, y):
         elif dist2 == 40:
             if len(dirs) == 1:
                 dir0 = dirs[0]
-
-                if flood_map[dir0] == floods_move:
-                    move = floods_move
-
-                elif dir0 in flood_dirs:
+                if dir0 in flood_dirs:
                     move = dir0
+
+            if move is None:
+                move = floods_move
+
             print >> sys.stderr, 'dist2 == 40', dir_move(move)
 
 
         # elif dist2 <= 50:
         if move is None:
-            move2 = best_dest(x, y, px, py, limit=80)
-            print >> sys.stderr, 'best_dest', (px, py), dir_move(move2)
-
-            if move2 is None:
-                next_map = {}
-                for dir in flood_dirs:
-                    c, d = next_pos(x, y, dir)
-                    next_map[dir] = distance3(px, py, c, d)
-
-                next_dirs = sorted(next_map.items(), key=itemgetter(1))
-                move = next_dirs[-1][0]
-
-            elif LEFT in flood_dirs and RIGHT in dirs:
-                if flood_map[RIGHT] > flood_map[LEFT]: move = RIGHT
-            elif RIGHT in flood_dirs and LEFT in dirs:
-                if flood_map[RIGHT] < flood_map[LEFT]: move = LEFT
-            elif UP in flood_dirs and DOWN in dirs:
-                if flood_map[DOWN] > flood_map[UP]: move = DOWN
-            elif DOWN in flood_dirs and UP in dirs:
-                if flood_map[DOWN] < flood_map[UP]: move = UP
-
-            if not move is None:
-                pass
-            elif LEFT in flood_dirs and LEFT in dirs:
-                if dx < 0: move = LEFT
-            elif RIGHT in flood_dirs and RIGHT in dirs:
-                if dx > 0: move = RIGHT
-            elif DOWN in flood_dirs and DOWN in dirs:
-                if dy > 0: move = DOWN
-            elif UP in flood_dirs and UP in dirs:
-                if dy < 0: move = UP
+            move = best_dest(x, y, px, py, limit=80)
+            print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
 
             if move is None:
-                move = move2
+                dist_map = {}
+                for dir in flood_dirs:
+                    c, d = next_pos(x, y, dir)
+                    dist_map[dir] = distance3(px, py, c, d)
+
+                dist_dirs = sorted(dist_map.items(), key=itemgetter(1))
+                move = dist_dirs[-1][0]
 
             print >> sys.stderr, 'dist2 <= 50', dir_move(move)
 
@@ -560,29 +533,12 @@ def head_min(x, y):
             if dist3 <= 20:
                 move = floods_move
                 print >> sys.stderr, 'C', dir_move(move)
-            else:
-                board_fill[d][c] = ID_START + 10
-                next_flood = flood_count(board_fill, c, d)
-                print >> sys.stderr, 'D', next_flood, '<=', flood_map[move], ' * 4'
-                if next_flood <= flood_map[move] * 4:
-                    move = floods_move
-            print >> sys.stderr, 'len(ngb) == 1', dir_move(move)
 
-        if move == floods_move: break
-        if flood_map[move] == flood_map[floods_move]: break
+        if move == floods_move: pass
+        elif flood_map[move] == flood_map[floods_move]: pass
+        elif next_map[move] > 0.66 * next_map[floods_move]: pass
+        else: move = floods_move
 
-        board_fill[d][c] = ID_START + 10
-        next_flood = flood_count(board_fill, c, d)
-        print >> sys.stderr, 'E', next_flood, '<=', flood_map[move], ' * 4'
-        if next_flood <= flood_map[move] * 4:
-            move = floods_move
-        print >> sys.stderr, 'len(ngb) == 2', dir_move(move)
-
-        # print >> sys.stderr, '-------------'
-        # for dir in move_dirs:
-            # pos = next_pos(x, y, dir)
-            # count = flood_cross(*pos)
-            # print >> sys.stderr, 'move_dirs', dir_move(dir), count
     return move
 
 
@@ -1251,6 +1207,46 @@ if __name__ == '__main__':
     HEADS = {1002: (5, 5)}
     HEADS_F = {}
     assert DOWN == best_move_fast(mx, my)
+
+
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[4] = [1001, 1001, 1001, 1001, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[5] = [   0,    0,    0,    0, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0, 1002, 1002,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0, 1002,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0, 1002, 1002, 1002, 1002, 1002, 1002, 1002,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = False
+    START = time()
+    LASTMOVE = LEFT
+    mx, my = 4, 5
+    HEADS = {1002: (6, 6)}
+    HEADS_F = {}
+    assert RIGHT == best_move_fast(mx, my)
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[3] = [1001, 1001, 1001, 1001, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[4] = [   0,    0,    0,    0, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0, 1002, 1002,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0, 1002,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0, 1002, 1002, 1002, 1002, 1002, 1002, 1002,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = True
+    START = time()
+    LASTMOVE = LEFT
+    mx, my = 4, 4
+    HEADS = {1002: (6, 5)}
+    HEADS_F = {}
+    assert RIGHT == best_move_fast(mx, my)
 
     # - Is there a snake or wall directly in front of me? If so, turn into the area [left or right]
     # with the most open space.
