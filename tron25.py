@@ -102,16 +102,17 @@ def fill_board():
         points = {pos}
 
         while points:
-            if time() - START > 0.06:
+            if time() - START > 0.065:
                 break
             c, d = points.pop()
             for (xx, yy) in neighbors(board_fill, c, d):
                 if (xx, yy) in points:
                     continue
                 value = board_fill[yy][xx]
-                dist = distance3(px, py, xx, yy)
+                dist = distance1(px, py, xx, yy)
                 if value == 0:
-                    dest = best_dest(px, py, xx, yy, limit=dist)
+                    limit = distance2(px, py, xx, yy)
+                    dest = best_dest(px, py, xx, yy, limit=limit)
                     if dest:
                         board_fill[yy][xx] = (dist, pid)
                         points.add((xx, yy))
@@ -143,7 +144,7 @@ def flood_count(board_fill, x, y, hf=False):
 
                 dist2 = board_fill[yy][xx]
                 if type(dist2) == tuple:
-                    dist = distance3(x, y, xx, yy)
+                    dist = distance1(x, y, xx, yy)
                     value2, pid = dist2
                     if dist < ratio * value2:
                         count += 1
@@ -178,14 +179,14 @@ def flood_fill(board_fill, x, y, move, ww=None, hh=None):
         points = {(c, d)}
 
         while points:
-            c, d = points.pop()
-            for (xx, yy) in neighbors(board_copy, c, d):
+            e, f = points.pop()
+            for (xx, yy) in neighbors(board_copy, e, f):
                 if (xx, yy) in points:
                     continue
 
                 value = board_copy[yy][xx]
                 if value == 0:
-                    dist = distance3(x, y, xx, yy)
+                    dist = distance1(c, d, xx, yy)
                     dist2 = board_fill[yy][xx]
 
                     if type(dist2) == tuple:
@@ -200,7 +201,6 @@ def flood_fill(board_fill, x, y, move, ww=None, hh=None):
                         board_copy[yy][xx] = dist
                         points.add((xx, yy))
     return count
-
 
 
 def default_move(x, y):
@@ -285,7 +285,7 @@ def best_dest(x, y, hx, hy, limit=0):
 
 
 def distance1(x, y, c, d):
-    return abs(x - c) + abs(y - d)
+    return 10 * (abs(x - c) + abs(y - d))
 
 def distance2(x, y, c, d):
     return 10 * (abs(x - c)**2 + abs(y - d)**2)
@@ -313,7 +313,7 @@ def head_min(x, y):
     if True:
         print >> sys.stderr, 'move_map [',
         for k, v in move_map.iteritems():
-            print >> sys.stderr, '(%d, %s), ' % (v, DIR[k]),
+            print >> sys.stderr, '(%d, %s),' % (v, DIR[k]),
         print >> sys.stderr, ']'
 
     # move_dirs <= 1
@@ -337,13 +337,13 @@ def head_min(x, y):
             DOWN:  flood_fill(board_fill, x, y, DOWN),
             LEFT:  flood_fill(board_fill, x, y, LEFT) }
 
-    flood_dirs  = sorted(flood_map.items(), key=itemgetter(1), reverse=True)
-    flood_dirs  = tuple(k for k, v in flood_dirs if v > 0)
+    flood_dirs = sorted(flood_map.items(), key=itemgetter(1), reverse=True)
+    flood_dirs = tuple(k for k, v in flood_dirs if v > 0)
 
     if True:
         print >> sys.stderr, 'flood_map [',
         for k, v in flood_map.iteritems():
-            print >> sys.stderr, '(%d, %s), ' % (v, DIR[k]),
+            print >> sys.stderr, '(%d, %s),' % (v, DIR[k]),
         print >> sys.stderr, ']'
 
     # flood_dirs == 0
@@ -401,6 +401,11 @@ def head_min(x, y):
             ax, ay = last_pos(x, y)
             dist3 = distance2(ax, ay, px, py)
 
+            if dist3 == 10:
+                move = guess_moves(ax, ay, px, py)
+                if not move in flood_dirs:
+                    move = floods_move
+
             if dist3 == 50:
                 gmove = guess_moves(ax, ay, x, y)
                 qx, qy = next_pos(px, py, gmove)
@@ -408,13 +413,8 @@ def head_min(x, y):
                 if is_clean(BOARD, qx, qy):
                     move = floods_move
                 else:
-                    next_map = {}
-                    for dir in flood_dirs:
-                        c, d = next_pos(x, y, dir)
-                        next_map[dir] = distance3(px, py, c, d)
+                    move = floods_move
 
-                    next_dirs = sorted(next_map.items(), key=itemgetter(1))
-                    move = next_dirs[-1][0]
             print >> sys.stderr, 'dist2 == 20', dist3, dir_move(move)
 
 
@@ -470,8 +470,6 @@ def head_min(x, y):
             print >> sys.stderr, 'dist2 <= 50', dir_move(move)
 
         if move is None: continue
-        if move == floods_move: break
-        if flood_map[move] == flood_map[floods_move]: break
         if dist2 <= 20: break
 
         c, d = next_pos(x, y, move)
@@ -494,13 +492,15 @@ def head_min(x, y):
                     move = floods_move
             print >> sys.stderr, 'len(ngb) == 1', dir_move(move)
 
-        else:
-            board_fill[d][c] = ID_START + 10
-            next_flood = flood_count(board_fill, c, d)
-            print >> sys.stderr, 'E', next_flood, '<=', flood_map[move], ' * 4'
-            if next_flood <= flood_map[move] * 4:
-                move = floods_move
-            print >> sys.stderr, 'len(ngb) == 2', dir_move(move)
+        if move == floods_move: break
+        if flood_map[move] == flood_map[floods_move]: break
+
+        board_fill[d][c] = ID_START + 10
+        next_flood = flood_count(board_fill, c, d)
+        print >> sys.stderr, 'E', next_flood, '<=', flood_map[move], ' * 4'
+        if next_flood <= flood_map[move] * 4:
+            move = floods_move
+        print >> sys.stderr, 'len(ngb) == 2', dir_move(move)
 
     return move
 
