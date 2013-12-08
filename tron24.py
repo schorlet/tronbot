@@ -105,35 +105,26 @@ def fill_board():
             if time() - START > 0.065:
                 break
             c, d = points.pop()
-            for (xx, yy) in neighbors(board_fill, c, d):
+            for (xx, yy) in neighbors_clean(BOARD, c, d):
                 if (xx, yy) in points:
                     continue
                 value = board_fill[yy][xx]
                 dist = distance1(px, py, xx, yy)
                 if value == 0:
-                    limit = distance2(px, py, xx, yy)
-                    dest = best_dest(px, py, xx, yy, limit=limit)
+                    dest = best_dest(px, py, xx, yy, limit=500)
                     if dest:
-                        board_fill[yy][xx] = (dist, pid)
+                        board_fill[yy][xx] = dist
                         points.add((xx, yy))
-                elif type(value) == tuple:
-                    value2, qid = value
-                    if dist < value2:
-                        points.add((xx, yy))
-                        board_fill[yy][xx] = (dist, pid)
-                    elif pid != qid and dist == value2:
-                        points.add((xx, yy))
-                        board_fill[yy][xx] = (dist, pid)
+                elif dist < value:
+                    points.add((xx, yy))
+                    board_fill[yy][xx] = dist
     if DEBUG:
         for row in board_fill:
             for cell in row:
-                if type(cell) == tuple:
-                    sys.stderr.write('{0: >6.1f}'.format(cell[0]))
+                if 0 < cell < ID_START:
+                    sys.stderr.write('{0: >6.1f}'.format(cell))
                 else:
-                    if 0 < cell < ID_START:
-                        sys.stderr.write('{0: >6.1f}'.format(cell))
-                    else:
-                        sys.stderr.write('{0: >6}'.format(cell))
+                    sys.stderr.write('{0: >6}'.format(cell))
             sys.stderr.write('\n')
         print >> sys.stderr, time() - START
         print >> sys.stderr, 'fill_board'
@@ -145,7 +136,6 @@ def flood_count(board_fill, x, y, hf=False):
     count = 1
     board_copy[y][x] = -2
     points = {(x, y)}
-    ratio = 1 #if hf else 0.5
     while points:
         c, d = points.pop()
         for (xx, yy) in neighbors(board_copy, c, d):
@@ -156,22 +146,19 @@ def flood_count(board_fill, x, y, hf=False):
                 if hf: points.add((xx, yy))
 
                 dist2 = board_fill[yy][xx]
-                if type(dist2) == tuple:
+                if dist2 == 0:
+                    count += 1
+                    board_copy[yy][xx] = count
+                    if not hf: points.add((xx, yy))
+                elif dist2 > 0:
                     dist = distance1(x, y, xx, yy)
-                    value2, pid = dist2
-                    if dist < ratio * value2:
+                    if dist < dist2:
                         count += 1
                         board_copy[yy][xx] = count
                         if not hf: points.add((xx, yy))
                     else:
                         board_copy[yy][xx] = -1
-                elif dist2 == 0:
-                    count += 1
-                    board_copy[yy][xx] = count
-                    if not hf: points.add((xx, yy))
-                else:
-                    board_copy[yy][xx] = -1
-                # --
+            # --
             elif hf and value >= ID_START and value in HEADS and HEADS[value] == (xx, yy):
                 if not value in HEADS_F: HEADS_F[value] = set()
                 HEADS_F[value].add(directions(xx - x, yy - y))
@@ -204,20 +191,11 @@ def flood_fill(board_fill, x, y, move, ww=None, hh=None):
             for (xx, yy) in neighbors(board_copy, e, f):
                 if (xx, yy) in points:
                     continue
-
                 value = board_copy[yy][xx]
                 if value == 0:
                     dist = distance1(c, d, xx, yy)
                     dist2 = board_fill[yy][xx]
-
-                    if type(dist2) == tuple:
-                        value2, pid = dist2
-                        if dist < value2:
-                            count += 1
-                            board_copy[yy][xx] = dist
-                            points.add((xx, yy))
-
-                    elif dist2 == 0:
+                    if dist2 == 0 or dist <= dist2:
                         count += 1
                         board_copy[yy][xx] = dist
                         points.add((xx, yy))
@@ -335,8 +313,12 @@ def best_dest(x, y, hx, hy, limit=0):
     return move
 
 
-def distance1(x, y, c, d):
+def __distance1(x, y, c, d):
     return 10 * (abs(x - c) + abs(y - d))
+
+def distance1(x, y, c, d):
+    d = __distance1(x, y, c, d)
+    return 5 if d == 10 else d
 
 def distance2(x, y, c, d):
     return 10 * (abs(x - c)**2 + abs(y - d)**2)
@@ -442,13 +424,17 @@ def head_min(x, y):
         dx, dy = px - x, py - y
 
         ex, ey = HEADS_F[pid].pop()
-        dirs = tuple(e for e in (ex, ey) if e != (0, 0))
+        dirs = tuple(e for e in (ex, ey) if e != END)
         print >> sys.stderr, 'PID', [DIR[dir] for dir in dirs], pid, ',', dist2
 
 
-        if 50 < dist2 < 5000:
+        if 50 < dist2:
             move = best_dest(x, y, px, py)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
+            dirs2 = [dir for dir in dirs if dir in flood_dirs]
+            if len(dirs2) > 1:
+                if move == ex and abs(dx) < abs(dy): move = ey
+                elif move == ey and abs(dx) >= abs(dy): move = ex
             print >> sys.stderr, '130 < dist2 < 5000', dir_move(move)
 
 
@@ -475,6 +461,10 @@ def head_min(x, y):
                 # paralell direction (one step behond)
                 move = guess_moves(ax, ay, px, py)
                 if not move in flood_dirs:
+                    move = floods_move
+                elif not move in next_map:
+                    move = floods_move
+                elif next_map[move] < 0.8 * next_map[floods_move]:
                     move = floods_move
 
             if dist3 == 50:
@@ -516,6 +506,12 @@ def head_min(x, y):
                 dist_dirs = sorted(dist_map.items(), key=itemgetter(1))
                 move = dist_dirs[-1][0]
 
+            else:
+                dirs2 = [dir for dir in dirs if dir in flood_dirs]
+                if len(dirs2) > 1:
+                    if move == ex and abs(dx) < abs(dy): move = ey
+                    elif move == ey and abs(dx) >= abs(dy): move = ex
+
             print >> sys.stderr, 'dist2 <= 50', dir_move(move)
 
         if move is None: continue
@@ -534,11 +530,17 @@ def head_min(x, y):
                 move = floods_move
                 print >> sys.stderr, 'C', dir_move(move)
 
+        if next_map[move] == 0:
+            flood_dirs = [dir for dir in flood_dirs if dir != move]
+            move = floods_move = flood_dirs[0]
+            print >> sys.stderr, 'D', dir_move(move)
+
         if move == floods_move: pass
         elif flood_map[move] == flood_map[floods_move]: pass
         elif next_map[move] > 0.66 * next_map[floods_move]: pass
         else: move = floods_move
 
+    # print >> sys.stderr, 'F', dir_move(move)
     return move
 
 
@@ -1240,13 +1242,165 @@ if __name__ == '__main__':
     BOARD[7] = [   0,    0,    0,    0,    0,    0,    0, 1002, 1002, 1002, 1002, 1002, 1002, 1002,    0]
     BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
     BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    DEBUG = True
+    DEBUG = False
     START = time()
     LASTMOVE = LEFT
     mx, my = 4, 4
     HEADS = {1002: (6, 5)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
+
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0, 1002, 1002, 1002, 1002, 1002, 1002,    0,    0,    0,    0]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[4] = [   0, 1001, 1001, 1001, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[5] = [   0,    0,    0,    0,    0, 1003, 1003, 1003, 1003, 1003, 1003,    0,    0,    0,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = False
+    START = time()
+    mx, my = 4, 4
+    HEADS = {1002: (10, 2), 1003: (10, 5)}
+    HEADS_F = {}
+    assert RIGHT == best_move_fast(mx, my)
+    # ##assert DOWN == best_move_fast(mx, my)
+
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0, 1002, 1002, 1002, 1002,    0, 1003, 1003, 1003,    0,    0]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0, 1002, 1003, 1003,    0,    0,    0,    0]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0, 1002, 1003,    0,    0, 1001, 1001,    0]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1003,    0,    0,    0,    0,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = False
+    START = time()
+    mx, my = 12, 4
+    HEADS = {1002: (8, 4), 1003: (12, 2)}
+    HEADS_F = {}
+    assert UP == best_move_fast(mx, my)
+    # assert LEFT == best_move_fast(mx, my)
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0, 1002,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[3] = [   0,    0, 1002,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[4] = [   0, 1001, 1002,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[5] = [   0, 1001, 1002,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[6] = [   0, 1001, 1002,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[7] = [   0, 1001, 1002,    0,    0, 1002, 1002, 1002,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0, 1001, 1002, 1002, 1002, 1002,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = False
+    START = time()
+    mx, my = 1, 9
+    # HEADS = {1002: (5, 8)}
+    HEADS = {1002: (7, 7)}
+    HEADS_F = {}
+    assert LEFT == best_move_fast(mx, my)
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1002,    0,    0,    0,    0,    0]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1002,    0,    0,    0,    0, 1003]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1002, 1002,    0,    0, 1003, 1003]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1002, 1002,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0]
+    DEBUG = False
+    START = time()
+    mx, my = 10, 7
+    HEADS = {1002: (10, 5), 1003: (13, 5)}
+    HEADS_F = {}
+    assert LEFT == best_move_fast(mx, my)
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0, 1001, 1001, 1001, 1001, 1001, 1001, 1002, 1002, 1002, 1002, 1002]
+    BOARD[2] = [   0,    0,    0,    0,    0, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = False
+    START = time()
+    mx, my = 9, 0
+    LASTMOVE = UP
+    HEADS = {1002: (10, 1)}
+    HEADS_F = {}
+    assert LEFT == best_move_fast(mx, my)
+
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0,    0, 1002, 1002, 1002,    0,    0,    0,    0,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1002, 1002,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0, 1001, 1001, 1001, 1001,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = False
+    START = time()
+    mx, my = 8, 7
+    HEADS = {1002: (7, 5)}
+    HEADS_F = {}
+    assert LEFT == best_move_fast(mx, my)
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [1002, 1002, 1002,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[4] = [1001, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0, 1003,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0, 1003,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = False
+    START = time()
+    mx, my = 1, 4
+    HEADS = {1002: (2, 2), 1003: (5, 6)}
+    HEADS_F = {}
+    assert RIGHT == best_move_fast(mx, my)
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1002, 1002, 1002]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1001, 1001]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1003,    0,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1003,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = False
+    START = time()
+    mx, my = 13, 4
+    HEADS = {1002: (12, 2), 1003: (9, 6)}
+    HEADS_F = {}
+    assert LEFT == best_move_fast(mx, my)
+
 
     # - Is there a snake or wall directly in front of me? If so, turn into the area [left or right]
     # with the most open space.

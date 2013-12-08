@@ -105,25 +105,19 @@ def fill_board():
             if time() - START > 0.065:
                 break
             c, d = points.pop()
-            for (xx, yy) in neighbors(board_fill, c, d):
+            for (xx, yy) in neighbors_clean(BOARD, c, d):
                 if (xx, yy) in points:
                     continue
                 value = board_fill[yy][xx]
                 dist = distance1(px, py, xx, yy)
                 if value == 0:
-                    limit = distance2(px, py, xx, yy)
-                    dest = best_dest(px, py, xx, yy, limit=limit)
+                    dest = best_dest(px, py, xx, yy, limit=500)
                     if dest:
-                        board_fill[yy][xx] = (dist, pid)
+                        board_fill[yy][xx] = dist
                         points.add((xx, yy))
-                elif type(value) == tuple:
-                    value2, qid = value
-                    if dist < value2:
-                        points.add((xx, yy))
-                        board_fill[yy][xx] = (dist, pid)
-                    elif pid != qid and dist == value2:
-                        points.add((xx, yy))
-                        board_fill[yy][xx] = (dist, pid)
+                elif dist < value:
+                    points.add((xx, yy))
+                    board_fill[yy][xx] = dist
     return board_fill
 
 
@@ -132,7 +126,6 @@ def flood_count(board_fill, x, y, hf=False):
     count = 1
     board_copy[y][x] = -2
     points = {(x, y)}
-    ratio = 1 #if hf else 0.5
     while points:
         c, d = points.pop()
         for (xx, yy) in neighbors(board_copy, c, d):
@@ -143,22 +136,19 @@ def flood_count(board_fill, x, y, hf=False):
                 if hf: points.add((xx, yy))
 
                 dist2 = board_fill[yy][xx]
-                if type(dist2) == tuple:
+                if dist2 == 0:
+                    count += 1
+                    board_copy[yy][xx] = count
+                    if not hf: points.add((xx, yy))
+                elif dist2 > 0:
                     dist = distance1(x, y, xx, yy)
-                    value2, pid = dist2
-                    if dist < ratio * value2:
+                    if dist < dist2:
                         count += 1
                         board_copy[yy][xx] = count
                         if not hf: points.add((xx, yy))
                     else:
                         board_copy[yy][xx] = -1
-                elif dist2 == 0:
-                    count += 1
-                    board_copy[yy][xx] = count
-                    if not hf: points.add((xx, yy))
-                else:
-                    board_copy[yy][xx] = -1
-                # --
+            # --
             elif hf and value >= ID_START and value in HEADS and HEADS[value] == (xx, yy):
                 if not value in HEADS_F: HEADS_F[value] = set()
                 HEADS_F[value].add(directions(xx - x, yy - y))
@@ -183,20 +173,11 @@ def flood_fill(board_fill, x, y, move, ww=None, hh=None):
             for (xx, yy) in neighbors(board_copy, e, f):
                 if (xx, yy) in points:
                     continue
-
                 value = board_copy[yy][xx]
                 if value == 0:
                     dist = distance1(c, d, xx, yy)
                     dist2 = board_fill[yy][xx]
-
-                    if type(dist2) == tuple:
-                        value2, pid = dist2
-                        if dist < value2:
-                            count += 1
-                            board_copy[yy][xx] = dist
-                            points.add((xx, yy))
-
-                    elif dist2 == 0:
+                    if dist2 == 0 or dist <= dist2:
                         count += 1
                         board_copy[yy][xx] = dist
                         points.add((xx, yy))
@@ -284,8 +265,12 @@ def best_dest(x, y, hx, hy, limit=0):
     return move
 
 
-def distance1(x, y, c, d):
+def __distance1(x, y, c, d):
     return 10 * (abs(x - c) + abs(y - d))
+
+def distance1(x, y, c, d):
+    d = __distance1(x, y, c, d)
+    return 5 if d == 10 else d
 
 def distance2(x, y, c, d):
     return 10 * (abs(x - c)**2 + abs(y - d)**2)
@@ -383,13 +368,17 @@ def head_min(x, y):
         dx, dy = px - x, py - y
 
         ex, ey = HEADS_F[pid].pop()
-        dirs = tuple(e for e in (ex, ey) if e != (0, 0))
+        dirs = tuple(e for e in (ex, ey) if e != END)
         print >> sys.stderr, 'PID', [DIR[dir] for dir in dirs], pid, ',', dist2
 
 
-        if 50 < dist2 < 5000:
+        if 50 < dist2:
             move = best_dest(x, y, px, py)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
+            dirs2 = [dir for dir in dirs if dir in flood_dirs]
+            if len(dirs2) > 1:
+                if move == ex and abs(dx) < abs(dy): move = ey
+                elif move == ey and abs(dx) >= abs(dy): move = ex
             print >> sys.stderr, '130 < dist2 < 5000', dir_move(move)
 
 
@@ -414,6 +403,10 @@ def head_min(x, y):
             if dist3 == 10:
                 move = guess_moves(ax, ay, px, py)
                 if not move in flood_dirs:
+                    move = floods_move
+                elif not move in next_map:
+                    move = floods_move
+                elif next_map[move] < 0.8 * next_map[floods_move]:
                     move = floods_move
 
             if dist3 == 50:
@@ -454,6 +447,12 @@ def head_min(x, y):
                 dist_dirs = sorted(dist_map.items(), key=itemgetter(1))
                 move = dist_dirs[-1][0]
 
+            else:
+                dirs2 = [dir for dir in dirs if dir in flood_dirs]
+                if len(dirs2) > 1:
+                    if move == ex and abs(dx) < abs(dy): move = ey
+                    elif move == ey and abs(dx) >= abs(dy): move = ex
+
             print >> sys.stderr, 'dist2 <= 50', dir_move(move)
 
         if move is None: continue
@@ -471,6 +470,11 @@ def head_min(x, y):
             if dist3 <= 20:
                 move = floods_move
                 print >> sys.stderr, 'C', dir_move(move)
+
+        if next_map[move] == 0:
+            flood_dirs = [dir for dir in flood_dirs if dir != move]
+            move = floods_move = flood_dirs[0]
+            print >> sys.stderr, 'D', dir_move(move)
 
         if move == floods_move: pass
         elif flood_map[move] == flood_map[floods_move]: pass
