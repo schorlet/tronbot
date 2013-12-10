@@ -209,42 +209,23 @@ def default_move(x, y):
     if len(flood_dirs) == 1:
         move = flood_dirs[0]
 
-    elif len(flood_dirs) == 2:
-        flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
-        flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
-        n1, n2 = neighbors[flood_dirs[0]], neighbors[flood_dirs[1]]
-        if 3 == n1 == n2:
-            flood_dirs.sort(key=lambda x: flood_map[x], reverse=False)
-        if 2 == n1 == n2:
-            flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
-        move = flood_dirs[0]
-
     else:
-        flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
-        flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
-        n1, n2 = neighbors[flood_dirs[0]], neighbors[flood_dirs[1]]
-        if 2 == n1 and 3 == n2:
-            flood_dirs.sort(key=lambda x: flood_map[x], reverse=False)
-        move = flood_dirs[0]
+        next_map = dict()
+        for dir in flood_dirs:
+            next_map[dir] = 0
+            c, d = next_pos(x, y, dir)
+            print >> sys.stderr, 'default_move: dir', DIR[dir], (c, d)
 
-    if neighbors[move] > 1 and len(flood_dirs) > 1:
-        c, d = next_pos(x, y, move)
-        e, f = next_pos(c, d, move)
-
-        if not is_clean(BOARD, e, f):
-            c, d = next_pos(x, y, move)
             board_copy[d][c] = 1
-
-            flood_dirs = [dir for dir in flood_dirs if dir != move]
-            flood_map = dict()
-
-            for dir in flood_dirs:
-                c, d = next_pos(x, y, dir)
-                flood_map[dir] = flood_count(board_copy, c, d)
+            for ngb in neighbors_clean(board_copy, c, d):
+                next_map[dir] = max(next_map[dir], flood_count(board_copy, *ngb))
             board_copy[d][c] = 0
 
-            flood_dirs.sort(key=lambda x: flood_map[x], reverse=False)
-            move = flood_dirs[0]
+        flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
+        flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
+        flood_dirs.sort(key=lambda x: next_map[x], reverse=True)
+        move = flood_dirs[0]
+
     return move
 
 

@@ -239,49 +239,25 @@ def default_move(x, y):
     if len(flood_dirs) == 1:
         move = flood_dirs[0]
 
-    elif len(flood_dirs) == 2:
-        flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
-        flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
-        n1, n2 = neighbors[flood_dirs[0]], neighbors[flood_dirs[1]]
-        if 3 == n1 == n2:
-            flood_dirs.sort(key=lambda x: flood_map[x], reverse=False)
-        if 2 == n1 == n2:
-            flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
-        if 2 == n1 and 3 == n2:
-            flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
-        move = flood_dirs[0]
-
     else:
-        flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
-        flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
-        n1, n2 = neighbors[flood_dirs[0]], neighbors[flood_dirs[1]]
-        if 2 == n1 and 3 == n2:
-            flood_dirs.sort(key=lambda x: flood_map[x], reverse=False)
-        move = flood_dirs[0]
+        next_map = dict()
+        for dir in flood_dirs:
+            next_map[dir] = 0
+            c, d = next_pos(x, y, dir)
+            print >> sys.stderr, 'default_move: dir', DIR[dir], (c, d)
 
-    print >> sys.stderr, 'default_move: flood_dirs > 1', DIR[move]
-
-    if neighbors[move] > 1 and len(flood_dirs) > 1:
-        c, d = next_pos(x, y, move)
-        e, f = next_pos(c, d, move)
-
-        if not is_clean(BOARD, e, f):
-            c, d = next_pos(x, y, move)
             board_copy[d][c] = 1
-            print >> sys.stderr, 'default_move: neighbors > 1', (c, d), board_copy[d][c]
-
-            flood_dirs = [dir for dir in flood_dirs if dir != move]
-            flood_map = dict()
-
-            for dir in flood_dirs:
-                c, d = next_pos(x, y, dir)
-                flood_map[dir] = flood_count(board_copy, c, d)
+            for ngb in neighbors_clean(board_copy, c, d):
+                print >> sys.stderr, '  default_move: ngb', DIR[dir], (c, d), ngb
+                next_map[dir] = max(next_map[dir], flood_count(board_copy, *ngb))
             board_copy[d][c] = 0
 
-            flood_dirs.sort(key=lambda x: flood_map[x], reverse=False)
-            move = flood_dirs[0]
+        flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
+        flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
+        flood_dirs.sort(key=lambda x: next_map[x], reverse=True)
+        move = flood_dirs[0]
+        print >> sys.stderr, 'default_move: flood_dirs > 1', DIR[move]
 
-            print >> sys.stderr, 'default_move: neighbors > 1', DIR[move]
     return move
 
 
@@ -636,8 +612,10 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 4, 8
-    assert LEFT == default_move(mx, my)
+    # assert LEFT == default_move(mx, my)
+    assert RIGHT == default_move(mx, my)
 
+    print >> sys.stderr, '\n\n'
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0, 1002,    0,    0,    0,    0,    0]
     BOARD[1] = [   0,    0,    0,    0, 1002,    0,    0,    0,    0,    0]
@@ -653,6 +631,8 @@ if __name__ == '__main__':
     START = time()
     mx, my = 3, 9
     assert RIGHT == default_move(mx, my)
+
+    sys.exit()
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0, 1002,    0,    0,    0,    0,    0]
