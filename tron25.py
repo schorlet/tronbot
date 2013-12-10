@@ -214,7 +214,7 @@ def default_move(x, y):
         flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
         n1, n2 = neighbors[flood_dirs[0]], neighbors[flood_dirs[1]]
         if 3 == n1 == n2:
-            flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
+            flood_dirs.sort(key=lambda x: flood_map[x], reverse=False)
         if 2 == n1 == n2:
             flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
         move = flood_dirs[0]
@@ -222,6 +222,9 @@ def default_move(x, y):
     else:
         flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
         flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
+        n1, n2 = neighbors[flood_dirs[0]], neighbors[flood_dirs[1]]
+        if 2 == n1 and 3 == n2:
+            flood_dirs.sort(key=lambda x: flood_map[x], reverse=False)
         move = flood_dirs[0]
 
     if neighbors[move] > 1 and len(flood_dirs) > 1:
@@ -386,10 +389,26 @@ def head_min(x, y):
         if 50 < dist2:
             move = best_dest(x, y, px, py)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
+
             dirs2 = [dir for dir in dirs if dir in flood_dirs]
-            if len(dirs2) > 1:
-                if move == ex and abs(dx) < abs(dy): move = ey
-                elif move == ey and abs(dx) >= abs(dy): move = ex
+
+            if px < 3 or py < 3 or px > W - 4 or py > H - 4 and (
+                    len(HEADS_F) == 1 and len(flood_dirs) >= 2):
+                        move = floods_move
+
+            elif len(dirs2) > 1:
+                if move == ex and abs(dx) + 6 < abs(dy): move = ey
+                elif move == ey and abs(dx) > abs(dy) + 4: move = ex
+
+            # len(dirs2) == 1
+            elif dist2 == 90 or dist2 == 250:
+                if len(HEADS_F) == 1 and len(flood_dirs) == 3:
+                    move = flood_dirs[1]
+
+            elif dist2 == 360:
+                if len(HEADS_F) == 1 and len(flood_dirs) == 3:
+                    move = flood_dirs[2]
+
             print >> sys.stderr, '130 < dist2 < 5000', dir_move(move)
 
 
@@ -453,7 +472,7 @@ def head_min(x, y):
 
         # elif dist2 <= 50:
         if move is None:
-            move = best_dest(x, y, px, py, limit=80)
+            move = best_dest(x, y, px, py, limit=140)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
 
             if move is None:
@@ -468,8 +487,8 @@ def head_min(x, y):
             else:
                 dirs2 = [dir for dir in dirs if dir in flood_dirs]
                 if len(dirs2) > 1:
-                    if move == ex and abs(dx) + 1 < abs(dy): move = ey
-                    elif move == ey and abs(dx) > abs(dy) + 1: move = ex
+                    if move == ex and abs(dx) + 6 < abs(dy): move = ey
+                    elif move == ey and abs(dx) > abs(dy) + 4: move = ex
                     else: move = floods_move
                 else: move = floods_move
 
@@ -488,14 +507,14 @@ def head_min(x, y):
                     BOARD[f][e] = pid
                     fl = flood_count(board_fill, c, d)
                     print >> sys.stderr, 'E', (e, f),distance2(px, py, e, f), fl
-                    if 2 > fl:
+                    if 2 > fl and len(flood_dirs) > 1:
                         flood_dirs = [dir for dir in flood_dirs if dir != move]
                         move = floods_move = flood_dirs[0]
                     BOARD[f][e] = 0
 
         if move == floods_move: pass
         elif flood_map[move] == flood_map[floods_move]: pass
-        elif flood_map[move] > 0.66 * flood_map[floods_move]: pass
+        elif flood_map[move] > 0.63 * flood_map[floods_move]: pass
         else: move = floods_move
 
     return move

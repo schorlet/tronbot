@@ -244,14 +244,19 @@ def default_move(x, y):
         flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
         n1, n2 = neighbors[flood_dirs[0]], neighbors[flood_dirs[1]]
         if 3 == n1 == n2:
-            flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
+            flood_dirs.sort(key=lambda x: flood_map[x], reverse=False)
         if 2 == n1 == n2:
+            flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
+        if 2 == n1 and 3 == n2:
             flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
         move = flood_dirs[0]
 
     else:
         flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
         flood_dirs.sort(key=lambda x: neighbors[x], reverse=False)
+        n1, n2 = neighbors[flood_dirs[0]], neighbors[flood_dirs[1]]
+        if 2 == n1 and 3 == n2:
+            flood_dirs.sort(key=lambda x: flood_map[x], reverse=False)
         move = flood_dirs[0]
 
     print >> sys.stderr, 'default_move: flood_dirs > 1', DIR[move]
@@ -436,10 +441,27 @@ def head_min(x, y):
         if 50 < dist2:
             move = best_dest(x, y, px, py)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
+
             dirs2 = [dir for dir in dirs if dir in flood_dirs]
-            if len(dirs2) > 1:
-                if move == ex and abs(dx) < abs(dy): move = ey
-                elif move == ey and abs(dx) >= abs(dy): move = ex
+
+            # boucle en C + 0.63
+            if px < 3 or py < 3 or px > W - 4 or py > H - 4 and (
+                    len(HEADS_F) == 1 and len(flood_dirs) >= 2):
+                        move = floods_move
+
+            elif len(dirs2) > 1:
+                if move == ex and abs(dx) + 6 < abs(dy): move = ey
+                elif move == ey and abs(dx) > abs(dy) + 4: move = ex
+
+            # len(dirs2) == 1
+            elif dist2 == 90 or dist2 == 250:
+                if len(HEADS_F) == 1 and len(flood_dirs) == 3:
+                    move = flood_dirs[1]
+
+            elif dist2 == 360:
+                if len(HEADS_F) == 1 and len(flood_dirs) == 3:
+                    move = flood_dirs[2]
+
             print >> sys.stderr, '130 < dist2 < 5000', dir_move(move)
 
 
@@ -502,10 +524,11 @@ def head_min(x, y):
                     else: move = ey
             print >> sys.stderr, 'dist2 == 50', dir_move(move)
 
+            # min-max
 
         # elif dist2 <= 50:
         if move is None:
-            move = best_dest(x, y, px, py, limit=80)
+            move = best_dest(x, y, px, py, limit=140)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
 
             if move is None:
@@ -520,8 +543,8 @@ def head_min(x, y):
             else:
                 dirs2 = [dir for dir in dirs if dir in flood_dirs]
                 if len(dirs2) > 1:
-                    if move == ex and abs(dx) + 1 < abs(dy): move = ey
-                    elif move == ey and abs(dx) > abs(dy) + 1: move = ex
+                    if move == ex and abs(dx) + 6 < abs(dy): move = ey
+                    elif move == ey and abs(dx) > abs(dy) + 4: move = ex
                     else: move = floods_move
                 else: move = floods_move
 
@@ -540,14 +563,14 @@ def head_min(x, y):
                     BOARD[f][e] = pid
                     fl = flood_count(board_fill, c, d, END)
                     print >> sys.stderr, 'E', (e, f),distance2(px, py, e, f), fl
-                    if 2 > fl:
+                    if 2 > fl and len(flood_dirs) > 1:
                         flood_dirs = [dir for dir in flood_dirs if dir != move]
                         move = floods_move = flood_dirs[0]
                     BOARD[f][e] = 0
 
         if move == floods_move: pass
         elif flood_map[move] == flood_map[floods_move]: pass
-        elif flood_map[move] > 0.66 * flood_map[floods_move]: pass
+        elif flood_map[move] > 0.63 * flood_map[floods_move]: pass
         else: move = floods_move
 
     return move
@@ -580,7 +603,8 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 3, 8
-    assert LEFT == default_move(mx, my)
+    # assert LEFT == default_move(mx, my)
+    assert UP == default_move(mx, my)
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -694,6 +718,92 @@ if __name__ == '__main__':
     mx, my = 8, 8
     assert LEFT == default_move(mx, my)
 
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0, 1002,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0, 1002,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0, 1002,    0,    0,    0]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0, 1002, 1002,    0,    0]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = True
+    START = time()
+    mx, my = 9, 4
+    assert UP == default_move(mx, my)
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0, 1002,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0, 1002,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0, 1002,    0,    0,    0]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0, 1002, 1002, 1002,    0]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = True
+    START = time()
+    mx, my = 9, 4
+    assert LEFT == default_move(mx, my)
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[5] = [1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = True
+    START = time()
+    mx, my = 9, 3
+    assert LEFT == default_move(mx, my)
+
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0, 1001, 1001]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[5] = [1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002,    0]
+    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    DEBUG = True
+    START = time()
+    mx, my = 8, 3
+    assert UP == default_move(mx, my)
+
+
+    # ##  ##  ##  ##  ##  ##  ##  ##
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[5] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[6] = [   0,    0,    0, 1002, 1002,    0,    0, 1001, 1001, 1001]
+    BOARD[7] = [   0,    0,    0, 1002,    0,    0,    0,    0,    0,    0]
+    BOARD[8] = [   0,    0,    0, 1002,    0,    0,    0,    0,    0,    0]
+    BOARD[9] = [   0,    0,    0, 1002,    0,    0,    0,    0,    0,    0]
+    DEBUG = True
+    START = time()
+    mx, my = 7, 6
+    LASTMOVE = LEFT
+    HEADS = {1002: (4, 6)}
+    HEADS_F = {}
+    assert UP == best_move_fast(mx, my)
+
+    # sys.exit()
 
     W, H = 15, 10
     # BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -751,7 +861,9 @@ if __name__ == '__main__':
     LASTMOVE = UP
     HEADS = {1002: (9, 4)}
     HEADS_F = {}
-    assert RIGHT == best_move_fast(mx, my)
+    # assert RIGHT == best_move_fast(mx, my)
+    assert UP == best_move_fast(mx, my) # dist2 == 360
+
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0]
