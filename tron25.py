@@ -300,7 +300,7 @@ def head_min(x, y):
     move_dirs  = sorted(move_map.items(), key=itemgetter(1), reverse=False)
     move_dirs = tuple(k for k, v in move_dirs if v > 0)
 
-    if True:
+    if DEBUG:
         print >> sys.stderr, 'move_map [',
         for k, v in move_map.iteritems():
             print >> sys.stderr, '(%d, %s),' % (v, DIR[k]),
@@ -311,7 +311,7 @@ def head_min(x, y):
         return None
 
     if LASTMOVE is None:
-        return move_dirs[0]
+        return move_dirs[-1]
 
 
     move = None
@@ -319,32 +319,6 @@ def head_min(x, y):
     flood_find(x, y)
     if len(HEADS_F) == 0:
         return None
-
-    # flood_map
-    flood_map = dict()
-    next_map = dict()
-
-    for dir in move_dirs:
-        c, d = next_pos(x, y, dir)
-        board_fill[d][c] = ID_START + 10
-        flood_map[dir] = flood_count(board_fill, c, d)
-        board_fill[d][c] = 0
-
-    flood_dirs = [dir for dir in move_dirs]
-    flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
-
-    if True:
-        print >> sys.stderr, 'flood_map [',
-        for k, v in flood_map.iteritems():
-            print >> sys.stderr, '(%d, %s),' % (v, DIR[k]),
-        print >> sys.stderr, ']'
-
-
-    # flood_dirs == 0
-    if len(flood_dirs) == 0:
-        return None
-    floods_move = flood_dirs[0]
-
 
     # heads
     heads = []
@@ -371,7 +345,27 @@ def head_min(x, y):
         print >> sys.stderr, 'PID', [DIR[dir] for dir in dirs], pid, ',', dist2
 
 
-        if 50 < dist2:
+        if 40 < dist2:
+            # flood_map
+            flood_map = dict()
+
+            for dir in move_dirs:
+                c, d = next_pos(x, y, dir)
+                board_fill[d][c] = ID_START + 10
+                flood_map[dir] = flood_count(board_fill, c, d)
+                board_fill[d][c] = 0
+
+            flood_dirs = [dir for dir in move_dirs]
+            flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
+
+            if True:
+                print >> sys.stderr, 'flood_map [',
+                for k, v in flood_map.iteritems():
+                    print >> sys.stderr, '(%d, %s),' % (v, DIR[k]),
+                print >> sys.stderr, ']'
+
+            floods_move = flood_dirs[0]
+
             move = best_dest(x, y, px, py)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
 
@@ -401,10 +395,17 @@ def head_min(x, y):
                     if len(HEADS_F) == 1 and len(flood_dirs) == 3:
                         move = flood_dirs[2]
 
+            if move is None: continue
+
+            if move == floods_move: pass
+            elif flood_map[move] == flood_map[floods_move]: pass
+            elif flood_map[move] > 0.63 * flood_map[floods_move]: pass
+            else: move = floods_move
+
             print >> sys.stderr, '130 < dist2 < 5000', dir_move(move)
 
 
-        # elif dist2 <= 50:
+        # elif dist2 <= 40:
         if move is None:
             BOARDS_FILL = dict()
 
@@ -417,14 +418,19 @@ def head_min(x, y):
 
                 for c, d in ngbs:
                     board[d][c] = board[y][x]
-                    board_copy = copy.deepcopy(board)
+
                     if not board_fill is None:
+                        board_copy = copy.deepcopy(board)
                         score = flood_count_2(board_copy, board_fill, c, d)
                     else:
                         score = min_play(board, c, d, px, py, n + 1)
+
                     board[d][c] = 0
                     if score > best_score:
                         best_score = score
+
+                    if time() - START > 0.09:
+                        break
                 return best_score
 
 
@@ -450,6 +456,9 @@ def head_min(x, y):
                     board[d][c] = 0
                     if score < best_score:
                         best_score = score
+
+                    if time() - START > 0.09:
+                        break
                 return best_score
 
 
@@ -476,13 +485,6 @@ def head_min(x, y):
             BOARDS_FILL.clear()
             break
 
-        if move is None: continue
-
-        if move == floods_move: pass
-        elif flood_map[move] == flood_map[floods_move]: pass
-        elif flood_map[move] > 0.63 * flood_map[floods_move]: pass
-        else: move = floods_move
-
     return move
 
 
@@ -490,7 +492,6 @@ def best_move_fast(x, y):
     move = head_min(x, y)
     if move is None: move = default_move(x, y)
     if move is None: move = END
-    print >> sys.stderr, DIR[move], time() - START
     return move
 
 
