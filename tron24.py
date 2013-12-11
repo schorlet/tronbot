@@ -424,11 +424,12 @@ def head_min(x, y):
 
             dirs2 = [dir for dir in dirs if dir in flood_dirs]
 
-            # boucle en C + 0.63
-            if px < 3 or py < 3 or px > W - 4 or py > H - 4 and (
+
+            if px < 5 or py < 5 or px > W - 6 or py > H - 6 and (
                     len(HEADS_F) == 1 and len(flood_dirs) >= 2 and
                     __distanceb(x, y, px, py) < 8):
-                        move = floods_move
+                        if flood_map[move] < flood_map[floods_move]:
+                            move = floods_move
 
             elif len(dirs2) > 1:
                 if move == ex and abs(dx) + 6 < abs(dy): move = ey
@@ -509,7 +510,7 @@ def head_min(x, y):
 
         # elif dist2 <= 50:
         if move is None:
-            move = best_dest(x, y, px, py, limit=80)
+            move = best_dest(x, y, px, py, limit=140)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
 
             if move is None and len(HEADS_F) == 1:
@@ -521,7 +522,7 @@ def head_min(x, y):
                 dist_dirs = sorted(dist_map.items(), key=itemgetter(1))
                 move = dist_dirs[-1][0]
 
-            elif len(HEADS_F) > 1:
+            elif not move is None and len(HEADS_F) > 1:
                 dirs2 = [dir for dir in dirs if dir in flood_dirs]
                 if len(dirs2) > 1:
                     if move == ex and abs(dx) + 6 < abs(dy): move = ey
@@ -542,10 +543,8 @@ def head_min(x, y):
 
                     for c, d in ngbs:
                         board[d][c] = board[y][x]
-                        # debug_board(board)
                         board_copy = copy.deepcopy(board)
-                        score = flood_count_2(board_copy, board_fill, c, d, END)
-                        # print >> sys.stderr, '.' * n, 'max_play', (c, d), (px, py), score
+                        score = flood_count_2(board_copy, board_fill, c, d)
                         # if n < 2:
                             # min_play(board, c, d, px, py, n + 1)
                         board[d][c] = 0
@@ -564,7 +563,6 @@ def head_min(x, y):
 
                     for c, d in ngbs:
                         board[d][c] = board[py][px]
-                        # debug_board(board)
                         score = max_play(board, x, y, c, d, n + 1)
                         # print >> sys.stderr, '.' * n, 'min_play', (x, y), (c, d), score
                         board[d][c] = 0
@@ -591,6 +589,7 @@ def head_min(x, y):
                     return best_move
 
                 move = minimax(x, y, px, py)
+                break
 
             print >> sys.stderr, 'dist2 <= 50', dir_move(move)
 
@@ -869,7 +868,7 @@ if __name__ == '__main__':
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
 
-    sys.exit()
+    # sys.exit()
 
     W, H = 15, 10
     # BOARD = [[0 for _ in range(W)] for _ in range(H)]

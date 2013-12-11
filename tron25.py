@@ -377,10 +377,12 @@ def head_min(x, y):
 
             dirs2 = [dir for dir in dirs if dir in flood_dirs]
 
-            if px < 3 or py < 3 or px > W - 4 or py > H - 4 and (
+
+            if px < 5 or py < 5 or px > W - 6 or py > H - 6 and (
                     len(HEADS_F) == 1 and len(flood_dirs) >= 2 and
                     __distanceb(x, y, px, py) < 8):
-                        move = floods_move
+                        if flood_map[move] < flood_map[floods_move]:
+                            move = floods_move
 
             elif len(dirs2) > 1:
                 if move == ex and abs(dx) + 6 < abs(dy): move = ey
@@ -458,7 +460,7 @@ def head_min(x, y):
 
         # elif dist2 <= 50:
         if move is None:
-            move = best_dest(x, y, px, py, limit=80)
+            move = best_dest(x, y, px, py, limit=140)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
 
             if move is None and len(HEADS_F) == 1:
@@ -511,7 +513,7 @@ def head_min(x, y):
                         board[d][c] = board[py][px]
                         score = max_play(board, x, y, c, d, n + 1)
                         board[d][c] = 0
-                        if score > best_score:
+                        if score < best_score:
                             best_score = score
                     return best_score
 
