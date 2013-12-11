@@ -94,8 +94,8 @@ def guess_moves(x, y, c, d):
     return (0, b), (a, 0)
 
 
-def fill_board():
-    board_fill = copy.deepcopy(BOARD)
+def fill_board(board):
+    board_fill = copy.deepcopy(board)
 
     for pid, pos in HEADS.items():
         px, py = pos
@@ -105,7 +105,7 @@ def fill_board():
         while points:
             dist, point = heapq.heappop(points)
             c, d = point
-            for (xx, yy) in neighbors_clean(BOARD, c, d):
+            for (xx, yy) in neighbors_clean(board, c, d):
                 value = board_fill[yy][xx]
                 dist2 = distance1(px, py, xx, yy)
                 if dist2 <= dist: dist2 = dist + 1
@@ -146,6 +146,10 @@ def flood_find(x, y):
 
 def flood_count(board_fill, x, y):
     board_copy = copy.deepcopy(BOARD)
+    return flood_count_2(board_copy, board_fill, x, y)
+
+
+def flood_count_2(board_copy, board_fill, x, y):
     board_copy[y][x] = -2
 
     points = [(0, (x, y))]
@@ -311,7 +315,7 @@ def head_min(x, y):
 
 
     move = None
-    board_fill = fill_board()
+    board_fill = fill_board(BOARD)
     flood_find(x, y)
     if len(HEADS_F) == 0:
         return None
@@ -374,7 +378,8 @@ def head_min(x, y):
             dirs2 = [dir for dir in dirs if dir in flood_dirs]
 
             if px < 3 or py < 3 or px > W - 4 or py > H - 4 and (
-                    len(HEADS_F) == 1 and len(flood_dirs) >= 2):
+                    len(HEADS_F) == 1 and len(flood_dirs) >= 2 and
+                    __distanceb(x, y, px, py) < 8):
                         move = floods_move
 
             elif len(dirs2) > 1:
@@ -453,10 +458,10 @@ def head_min(x, y):
 
         # elif dist2 <= 50:
         if move is None:
-            move = best_dest(x, y, px, py, limit=140)
+            move = best_dest(x, y, px, py, limit=80)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
 
-            if move is None:
+            if move is None and len(HEADS_F) == 1:
                 dist_map = {}
                 for dir in flood_dirs:
                     c, d = next_pos(x, y, dir)
@@ -465,13 +470,71 @@ def head_min(x, y):
                 dist_dirs = sorted(dist_map.items(), key=itemgetter(1))
                 move = dist_dirs[-1][0]
 
-            else:
+            elif not move is None and len(HEADS_F) > 1:
                 dirs2 = [dir for dir in dirs if dir in flood_dirs]
                 if len(dirs2) > 1:
                     if move == ex and abs(dx) + 6 < abs(dy): move = ey
                     elif move == ey and abs(dx) > abs(dy) + 4: move = ex
                     else: move = floods_move
                 else: move = floods_move
+
+            elif len(HEADS_F) == 1:
+                def max_play(board, x, y, px, py, n=0):
+                    best_score = -1000
+
+                    ngbs = neighbors_clean(board, x, y)
+                    if len(ngbs) == 0:
+                        return best_score
+
+                    board_fill = fill_board(board)
+
+                    for c, d in ngbs:
+                        board[d][c] = board[y][x]
+                        board_copy = copy.deepcopy(board)
+                        score = flood_count_2(board_copy, board_fill, c, d)
+                        # if n < 2:
+                            # min_play(board, c, d, px, py, n + 1)
+                        board[d][c] = 0
+                        if score > best_score:
+                            best_score = score
+                    return best_score
+
+
+                def min_play(board, x, y, px, py, n=0):
+                    best_score = 1000
+
+                    ngbs = neighbors_clean(board, px, py)
+                    if len(ngbs) == 0:
+                        return best_score
+
+                    for c, d in ngbs:
+                        board[d][c] = board[py][px]
+                        score = max_play(board, x, y, c, d, n + 1)
+                        board[d][c] = 0
+                        if score > best_score:
+                            best_score = score
+                    return best_score
+
+
+                def minimax(x, y, px, py):
+                    board = copy.deepcopy(BOARD)
+                    best_score = 0
+                    best_move = None
+
+                    for dir in flood_dirs:
+                        c, d = next_pos(x, y, dir)
+
+                        board[d][c] = board[y][x]
+                        score = min_play(board, c, d, px, py)
+                        board[d][c] = 0
+                        if score > best_score:
+                            best_score = score
+                            best_move = dir
+                    print >> sys.stderr, 'minimax', dir_move(best_move)
+                    return best_move
+
+                move = minimax(x, y, px, py)
+                break
 
             print >> sys.stderr, 'dist2 <= 50', dir_move(move)
 

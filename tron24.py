@@ -94,8 +94,8 @@ def guess_moves(x, y, c, d):
     return (0, b), (a, 0)
 
 
-def fill_board():
-    board_fill = copy.deepcopy(BOARD)
+def fill_board(board):
+    board_fill = copy.deepcopy(board)
 
     for pid, pos in HEADS.items():
         px, py = pos
@@ -105,7 +105,7 @@ def fill_board():
         while points:
             dist, point = heapq.heappop(points)
             c, d = point
-            for (xx, yy) in neighbors_clean(BOARD, c, d):
+            for (xx, yy) in neighbors_clean(board, c, d):
                 value = board_fill[yy][xx]
                 dist2 = distance1(px, py, xx, yy)
                 if dist2 <= dist: dist2 = dist + 1
@@ -164,6 +164,10 @@ def flood_find(x, y):
 
 def flood_count(board_fill, x, y, moved=END):
     board_copy = copy.deepcopy(BOARD)
+    return flood_count_2(board_copy, board_fill, x, y, moved)
+
+
+def flood_count_2(board_copy, board_fill, x, y, moved=END):
     board_copy[y][x] = -2
 
     points = [(0, (x, y))]
@@ -191,7 +195,7 @@ def flood_count(board_fill, x, y, moved=END):
                 sys.stderr.write('{0: >6}'.format(cell))
             sys.stderr.write('\n')
         print >> sys.stderr, time() - START
-    print >> sys.stderr, 'flood_count', count, DIR[moved]
+        print >> sys.stderr, 'flood_count', count, DIR[moved]
     return count
 
 
@@ -326,8 +330,8 @@ def p(l):
     for y in range(16):
         for x in range(16):
             d = distance2(8, 8, x, y)
-            if d > l: d = 0
-            sys.stderr.write('{0: >5}'.format(d))
+            if d > l: sys.stderr.write('{0: >5}'.format(0))
+            else: sys.stderr.write('{0: >5.1f}'.format(d))
         sys.stderr.write('\n')
 
 
@@ -358,7 +362,7 @@ def head_min(x, y):
         return None
 
     move = None
-    board_fill = fill_board()
+    board_fill = fill_board(BOARD)
     flood_find(x, y)
     if len(HEADS_F) == 0:
         return None
@@ -422,7 +426,8 @@ def head_min(x, y):
 
             # boucle en C + 0.63
             if px < 3 or py < 3 or px > W - 4 or py > H - 4 and (
-                    len(HEADS_F) == 1 and len(flood_dirs) >= 2):
+                    len(HEADS_F) == 1 and len(flood_dirs) >= 2 and
+                    __distanceb(x, y, px, py) < 8):
                         move = floods_move
 
             elif len(dirs2) > 1:
@@ -504,10 +509,10 @@ def head_min(x, y):
 
         # elif dist2 <= 50:
         if move is None:
-            move = best_dest(x, y, px, py, limit=140)
+            move = best_dest(x, y, px, py, limit=80)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
 
-            if move is None:
+            if move is None and len(HEADS_F) == 1:
                 dist_map = {}
                 for dir in flood_dirs:
                     c, d = next_pos(x, y, dir)
@@ -516,13 +521,76 @@ def head_min(x, y):
                 dist_dirs = sorted(dist_map.items(), key=itemgetter(1))
                 move = dist_dirs[-1][0]
 
-            else:
+            elif len(HEADS_F) > 1:
                 dirs2 = [dir for dir in dirs if dir in flood_dirs]
                 if len(dirs2) > 1:
                     if move == ex and abs(dx) + 6 < abs(dy): move = ey
                     elif move == ey and abs(dx) > abs(dy) + 4: move = ex
                     else: move = floods_move
                 else: move = floods_move
+
+            elif len(HEADS_F) == 1:
+                def max_play(board, x, y, px, py, n=0):
+                    """max_play"""
+                    best_score = -1000
+
+                    ngbs = neighbors_clean(board, x, y)
+                    if len(ngbs) == 0:
+                        return best_score
+
+                    board_fill = fill_board(board)
+
+                    for c, d in ngbs:
+                        board[d][c] = board[y][x]
+                        # debug_board(board)
+                        board_copy = copy.deepcopy(board)
+                        score = flood_count_2(board_copy, board_fill, c, d, END)
+                        # print >> sys.stderr, '.' * n, 'max_play', (c, d), (px, py), score
+                        # if n < 2:
+                            # min_play(board, c, d, px, py, n + 1)
+                        board[d][c] = 0
+                        if score > best_score:
+                            best_score = score
+                    return best_score
+
+
+                def min_play(board, x, y, px, py, n=0):
+                    """min_play"""
+                    best_score = 1000
+
+                    ngbs = neighbors_clean(board, px, py)
+                    if len(ngbs) == 0:
+                        return best_score
+
+                    for c, d in ngbs:
+                        board[d][c] = board[py][px]
+                        # debug_board(board)
+                        score = max_play(board, x, y, c, d, n + 1)
+                        # print >> sys.stderr, '.' * n, 'min_play', (x, y), (c, d), score
+                        board[d][c] = 0
+                        if score < best_score:
+                            best_score = score
+                    return best_score
+
+
+                def minimax(x, y, px, py):
+                    board = copy.deepcopy(BOARD)
+                    best_score = 0
+                    best_move = None
+
+                    for dir in flood_dirs:
+                        c, d = next_pos(x, y, dir)
+
+                        board[d][c] = board[y][x]
+                        score = min_play(board, c, d, px, py)
+                        board[d][c] = 0
+                        if score > best_score:
+                            best_score = score
+                            best_move = dir
+                            print >> sys.stderr, 'minimax', best_score, dir_move(best_move)
+                    return best_move
+
+                move = minimax(x, y, px, py)
 
             print >> sys.stderr, 'dist2 <= 50', dir_move(move)
 
@@ -579,8 +647,8 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 3, 8
-    # assert LEFT == default_move(mx, my)
-    assert UP == default_move(mx, my)
+    assert LEFT == default_move(mx, my)
+    # assert UP == default_move(mx, my)
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -612,8 +680,8 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 4, 8
-    # assert LEFT == default_move(mx, my)
-    assert RIGHT == default_move(mx, my)
+    assert LEFT == default_move(mx, my)
+    # assert RIGHT == default_move(mx, my)
 
     print >> sys.stderr, '\n\n'
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -631,8 +699,6 @@ if __name__ == '__main__':
     START = time()
     mx, my = 3, 9
     assert RIGHT == default_move(mx, my)
-
-    sys.exit()
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0, 1002,    0,    0,    0,    0,    0]
@@ -783,7 +849,27 @@ if __name__ == '__main__':
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
 
-    # sys.exit()
+
+    print >> sys.stderr, '---------------------'
+    print >> sys.stderr, '---------------------'
+    print >> sys.stderr, '---------------------'
+
+    W, H = 5, 5
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0]
+    BOARD[2] = [   0, 1002,    0,    0,    0]
+    BOARD[3] = [1002, 1002,    0, 1001, 1001]
+    BOARD[4] = [1002,    0,    0,    0,    0]
+    DEBUG = True
+    START = time()
+    mx, my = 3, 3
+    LASTMOVE = LEFT
+    HEADS = {1002: (1, 2)}
+    HEADS_F = {}
+    assert UP == best_move_fast(mx, my)
+
+    sys.exit()
 
     W, H = 15, 10
     # BOARD = [[0 for _ in range(W)] for _ in range(H)]
