@@ -174,6 +174,57 @@ def flood_count_2(board_copy, board_fill, x, y):
     return count
 
 
+def flood_count_3(board_fill, x, y, board_pos, moved=END):
+    board_copy = copy.deepcopy(BOARD)
+    return __flood_count_3(board_copy, board_fill, x, y, board_pos, moved)
+
+
+def __flood_count_3(board_copy, board_fill, x, y, board_pos, moved=END):
+    board_copy[y][x] = -2
+
+    points = [(0, (x, y))]
+    heapq.heapify(points)
+    count = 0
+
+    while points:
+        dist, point = heapq.heappop(points)
+        c, d = point
+
+        for (xx, yy) in neighbors_clean(board_copy, c, d):
+            if board_copy[yy][xx] == -2: continue
+
+            dist2 = distance1(x, y, xx, yy)
+            if dist2 <= dist: dist2 = dist + 1
+
+            dist3 = board_fill[yy][xx]
+            if dist3 == 0 or dist2 < dist3:
+                count += 1
+                board_copy[yy][xx] = dist2
+                board_pos[yy][xx] = board_pos[yy][xx] + 1
+                heapq.heappush(points, (dist2, (xx, yy)))
+    return count
+
+
+def stat_board_pos(board_pos, x, y):
+    stat_map = {k:0 for k in DIR}
+
+    for yy in xrange(H):
+        for xx in xrange(W):
+            value = board_pos[yy][xx]
+            if value >= ID_START: continue
+
+            ex, ey = directions(xx - x, yy - y)
+            if value == 0:
+                stat_map[ex] = stat_map[ex] - 1
+                stat_map[ey] = stat_map[ey] - 1
+            else:
+                stat_map[ex] = stat_map[ex] + 1
+                stat_map[ey] = stat_map[ey] + 1
+
+    del stat_map[END]
+    return stat_map
+
+
 def default_move(x, y):
     # move_map
     move_map = {
@@ -344,15 +395,14 @@ def head_min(x, y):
         if 40 < dist2:
             # flood_map
             flood_map = dict()
+            board_pos = copy.deepcopy(BOARD)
 
             for dir in move_dirs:
                 c, d = next_pos(x, y, dir)
                 board_fill[d][c] = ID_START + 10
-                flood_map[dir] = flood_count(board_fill, c, d)
+                flood_map[dir] = flood_count_3(board_fill, c, d, board_pos, dir)
                 board_fill[d][c] = 0
 
-            flood_dirs = [dir for dir in move_dirs]
-            flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
 
             if True:
                 print >> sys.stderr, 'flood_map [',
@@ -360,24 +410,44 @@ def head_min(x, y):
                     print >> sys.stderr, '(%d, %s),' % (v, DIR[k]),
                 print >> sys.stderr, ']'
 
+            flood_dirs = [dir for dir in move_dirs]
+            flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
             floods_move = flood_dirs[0]
+
 
             move = best_dest(x, y, px, py)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
-
-
-            if (move != floods_move and len(flood_dirs) > 1):
-
-                if x < 3 or y < 3 or x > W - 4 or y > H - 4:
-                    if flood_map[move] < 0.90 * flood_map[floods_move]:
-                            move = floods_move
-
             if move is None: continue
 
-            if move == floods_move: pass
-            elif flood_map[move] == flood_map[floods_move]: pass
-            elif flood_map[move] > 0.63 * flood_map[floods_move]: pass
-            else: move = floods_move
+
+            if (move != floods_move and len(flood_dirs) > 1
+                    and distance4(x, y, px, py) < 8):
+
+                if x < 3 or y < 3 or x > W - 4 or y > H - 4:
+                    if flood_map[move] < 0.96 * flood_map[floods_move]:
+
+                        stat_map = stat_board_pos(board_pos, x, y)
+                        stat_dirs = [dir for dir, value in stat_map.items() if value > 0]
+                        stat_dirs = [dir for dir in stat_dirs if dir in move_dirs]
+                        stat_dirs.sort(key=lambda x: stat_map[x], reverse=False)
+                        move = stat_dirs[0]
+                        print >> sys.stderr, 'A', dir_move(move)
+
+                else:
+                    if move == floods_move: pass
+                    elif flood_map[move] == flood_map[floods_move]: pass
+                    elif flood_map[move] > 0.83 * flood_map[floods_move]: pass
+                    else:
+                        move = floods_move
+                        print >> sys.stderr, 'C', dir_move(move)
+
+            else:
+                if move == floods_move: pass
+                elif flood_map[move] == flood_map[floods_move]: pass
+                elif flood_map[move] > 0.63 * flood_map[floods_move]: pass
+                else:
+                    move = floods_move
+                    print >> sys.stderr, 'B', dir_move(move)
 
             print >> sys.stderr, '130 < dist2 < 5000', dir_move(move)
 
