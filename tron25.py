@@ -212,14 +212,11 @@ def stat_board_pos(board_pos, x, y):
         for xx in xrange(W):
             value = board_pos[yy][xx]
             if value >= ID_START: continue
+            if value == 0: continue
 
             ex, ey = directions(xx - x, yy - y)
-            if value == 0:
-                stat_map[ex] = stat_map[ex] - 1
-                stat_map[ey] = stat_map[ey] - 1
-            else:
-                stat_map[ex] = stat_map[ex] + 1
-                stat_map[ey] = stat_map[ey] + 1
+            stat_map[ex] = stat_map[ex] + 1
+            stat_map[ey] = stat_map[ey] + 1
 
     del stat_map[END]
     return stat_map
@@ -419,35 +416,52 @@ def head_min(x, y):
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
             if move is None: continue
 
+            dirs2 = [dir for dir in dirs if dir in flood_dirs]
+            bpass = False
 
             if (move != floods_move and len(flood_dirs) > 1
                     and distance4(x, y, px, py) < 8):
 
                 if x < 3 or y < 3 or x > W - 4 or y > H - 4:
-                    if flood_map[move] < 0.96 * flood_map[floods_move]:
+                    stat_map = stat_board_pos(board_pos, x, y)
 
-                        stat_map = stat_board_pos(board_pos, x, y)
-                        stat_dirs = [dir for dir, value in stat_map.items() if value > 0]
-                        stat_dirs = [dir for dir in stat_dirs if dir in move_dirs]
-                        stat_dirs.sort(key=lambda x: stat_map[x], reverse=False)
-                        move = stat_dirs[0]
-                        print >> sys.stderr, 'A', dir_move(move)
+                    stat_dirs = [dir for dir, value in stat_map.items()
+                        if (value > 0 and dir in move_dirs)]
 
-                else:
-                    if move == floods_move: pass
-                    elif flood_map[move] == flood_map[floods_move]: pass
-                    elif flood_map[move] > 0.83 * flood_map[floods_move]: pass
-                    else:
+                    stat_dirs.sort(key=lambda x: stat_map[x], reverse=False)
+                    stat_min = stat_dirs[0]
+                    if stat_min in (dirs): del stat_dirs[0]
+
+                    move = stat_dirs[0]
+                    bpass = True
+                    print >> sys.stderr, 'A', dir_move(move)
+
+                elif x < 5 or y < 5 or x > W - 6 or y > H - 6:
+                    if flood_map[move] < 0.93 * flood_map[floods_move]:
                         move = floods_move
-                        print >> sys.stderr, 'C', dir_move(move)
 
-            else:
-                if move == floods_move: pass
-                elif flood_map[move] == flood_map[floods_move]: pass
-                elif flood_map[move] > 0.63 * flood_map[floods_move]: pass
+            elif len(dirs2) == 1 and dist2 == 90 or dist2 == 250:
+                imove = inv_move(*LASTMOVE)
+                if not imove in flood_dirs: pass
+                elif len(flood_dirs) < 2: pass
+                elif LASTMOVE in (UP, DOWN) and imove != ey: pass
+                elif LASTMOVE in (LEFT, RIGHT) and imove != ex: pass
                 else:
-                    move = floods_move
-                    print >> sys.stderr, 'B', dir_move(move)
+                    for _ in range(4):
+                        c, d = next_pos(x, y, imove)
+                        if BOARD[d][c] != BOARD[y][x]: break
+                        c, d = next_pos(px, py, imove)
+                        if BOARD[d][c] != BOARD[py][px]: break
+                    else:
+                        if imove == ey: move = ex
+                        else: move = ey
+                        print >> sys.stderr, 'B', dir_move(move)
+                        bpass = True
+
+            if move == floods_move: pass
+            elif flood_map[move] == flood_map[floods_move]: pass
+            elif not bpass and flood_map[move] > 0.63 * flood_map[floods_move]: pass
+            elif not bpass: move = floods_move
 
             print >> sys.stderr, '130 < dist2 < 5000', dir_move(move)
 
