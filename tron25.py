@@ -351,7 +351,6 @@ def head_min(x, y):
                 flood_map[dir] = flood_count(board_fill, c, d)
                 board_fill[d][c] = 0
 
-
             if True:
                 print >> sys.stderr, 'flood_map [',
                 for k, v in flood_map.iteritems():
@@ -366,8 +365,17 @@ def head_min(x, y):
             move = best_dest(x, y, px, py)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
             if move is None: continue
-
             ratio = 0.63
+
+            dirs2 = [dir for dir in dirs if dir in flood_dirs]
+            if (len(dirs2) == 1 and (dist2 == 90 or dist2 == 250) and
+                    len(HEADS_F) == 1 and len(flood_dirs) == 3):
+                if LASTMOVE in (UP, DOWN) and LASTMOVE != ey: pass
+                elif LASTMOVE in (LEFT, RIGHT) and LASTMOVE != ex: pass
+                else:
+                    move = flood_dirs[1]
+                    ratio = 0.50
+
             if distance4(x, y, px, py) < 8 and (
                     x < 3 or y < 3 or x > W - 4 or y > H - 4) and (
                     px < 3 or py < 3 or px > W - 4 or py > H - 4):
@@ -383,21 +391,6 @@ def head_min(x, y):
             else: move = floods_move
 
             print >> sys.stderr, '40 < dist2 < 5000', dir_move(move)
-
-        elif dist2 <= 20:
-            # flood_map
-            flood_map = dict()
-
-            for dir in move_dirs:
-                c, d = next_pos(x, y, dir)
-                board_fill[d][c] = board_fill[y][x]
-                flood_map[dir] = flood_count(board_fill, c, d)
-                board_fill[d][c] = 0
-
-            flood_dirs = [dir for dir in move_dirs]
-            flood_dirs.sort(key=lambda x: flood_map[x], reverse=True)
-            move = flood_dirs[0]
-            print >> sys.stderr, 'dist2 <= 20', dir_move(move)
 
 
         # elif dist2 <= 40:
@@ -434,7 +427,7 @@ def head_min(x, y):
 
                 ngbs = neighbors_clean(board, px, py)
                 if len(ngbs) == 0:
-                    return 1 # best_score
+                    return best_score
 
                 board_fill = None
 
@@ -462,13 +455,10 @@ def head_min(x, y):
                 best_score = 0
                 best_move = None
 
-                # LASTMOVE
-                neighbors = dict()
-                for dir in move_dirs:
-                    c, d = next_pos(x, y, dir)
-                    neighbors[dir] = len(neighbors_clean(board, c, d))
-
-                dirs2 = sorted(move_dirs, key=lambda x: neighbors[x])
+                dirs2 = sorted(move_dirs, key=lambda x: move_map[x])
+                if LASTMOVE in move_dirs:
+                    dirs2.remove(LASTMOVE)
+                    dirs2.insert(0, LASTMOVE)
 
                 for dir in dirs2:
                     c, d = next_pos(x, y, dir)

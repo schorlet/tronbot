@@ -198,75 +198,6 @@ def flood_count_2(board_copy, board_fill, x, y, moved=END):
     return count
 
 
-def flood_count_3(board_fill, x, y, board_pos, moved=END):
-    board_copy = copy.deepcopy(BOARD)
-    return __flood_count_3(board_copy, board_fill, x, y, board_pos, moved)
-
-
-def __flood_count_3(board_copy, board_fill, x, y, board_pos, moved=END):
-    board_copy[y][x] = -2
-
-    points = [(0, (x, y))]
-    heapq.heapify(points)
-    count = 0
-
-    while points:
-        dist, point = heapq.heappop(points)
-        c, d = point
-
-        for (xx, yy) in neighbors_clean(board_copy, c, d):
-            if board_copy[yy][xx] == -2: continue
-
-            dist2 = distance1(x, y, xx, yy)
-            if dist2 <= dist: dist2 = dist + 1
-
-            dist3 = board_fill[yy][xx]
-            if dist3 == 0 or dist2 < dist3:
-                count += 1
-                board_copy[yy][xx] = dist2
-                board_pos[yy][xx] = board_pos[yy][xx] + 1
-                heapq.heappush(points, (dist2, (xx, yy)))
-    # if DEBUG:
-        # for row in board_copy:
-            # for cell in row:
-                # sys.stderr.write('{0: >6}'.format(cell))
-            # sys.stderr.write('\n')
-        # print >> sys.stderr, time() - START
-        # print >> sys.stderr, 'flood_count', count, DIR[moved]
-    return count
-
-
-def stat_board_pos(board_pos, x, y):
-    if DEBUG:
-        for row in board_pos:
-            for cell in row:
-                sys.stderr.write('{0: >5}'.format(cell))
-            sys.stderr.write('\n')
-        print >> sys.stderr, 'stat_board_pos', time() - START
-
-    stat_map = {k:0 for k in DIR}
-
-    for yy in xrange(H):
-        for xx in xrange(W):
-            value = board_pos[yy][xx]
-            if value >= ID_START: continue
-            if value == 0: continue
-
-            ex, ey = directions(xx - x, yy - y)
-            stat_map[ex] = stat_map[ex] + 1
-            stat_map[ey] = stat_map[ey] + 1
-
-    del stat_map[END]
-
-    if DEBUG:
-        print >> sys.stderr, 'stat_map [',
-        for k, v in stat_map.iteritems():
-            print >> sys.stderr, '(%d, %s),' % (v, DIR[k]),
-        print >> sys.stderr, ']'
-
-    return stat_map
-
-
 def default_move(x, y):
     # move_map
     move_map = {
@@ -459,14 +390,12 @@ def head_min(x, y):
         if 40 < dist2:
             # flood_map
             flood_map = dict()
-            board_pos = copy.deepcopy(BOARD)
 
             for dir in move_dirs:
                 c, d = next_pos(x, y, dir)
-                board_fill[d][c] = ID_START + 10
-                flood_map[dir] = flood_count_3(board_fill, c, d, board_pos, dir)
+                board_fill[d][c] = board_fill[y][x]
+                flood_map[dir] = flood_count(board_fill, c, d)
                 board_fill[d][c] = 0
-
 
             if DEBUG:
                 print >> sys.stderr, 'flood_map [',
@@ -482,56 +411,34 @@ def head_min(x, y):
             move = best_dest(x, y, px, py)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
             if move is None: continue
+            ratio = 0.63
 
             dirs2 = [dir for dir in dirs if dir in flood_dirs]
-            bpass = False
 
-            if (move != floods_move and len(flood_dirs) > 1
-                    and distance4(x, y, px, py) < 8):
-
-                if x < 3 or y < 3 or x > W - 4 or y > H - 4:
-                    stat_map = stat_board_pos(board_pos, x, y)
-
-                    stat_dirs = [dir for dir, value in stat_map.items()
-                        if (value > 0 and dir in move_dirs)]
-
-                    stat_dirs.sort(key=lambda x: stat_map[x], reverse=False)
-                    print >> sys.stderr, 'A', stat_dirs
-                    stat_min = stat_dirs[0]
-                    if stat_min in (dirs): del stat_dirs[0]
-
-                    move = stat_dirs[0]
-                    bpass = True
-                    print >> sys.stderr, 'A', dir_move(move)
-
-                elif x < 5 or y < 5 or x > W - 6 or y > H - 6:
-                    if flood_map[move] < 0.93 * flood_map[floods_move]:
-                        move = floods_move
-
-            elif len(dirs2) == 1 and dist2 == 90 or dist2 == 250:
-                imove = inv_move(*LASTMOVE)
-                if not imove in flood_dirs: pass
-                elif len(flood_dirs) < 2: pass
-                elif LASTMOVE in (UP, DOWN) and imove != ey: pass
-                elif LASTMOVE in (LEFT, RIGHT) and imove != ex: pass
+            if (len(dirs2) == 1 and (dist2 == 90 or dist2 == 250) and
+                    len(HEADS_F) == 1 and len(flood_dirs) == 3):
+                print >> sys.stderr, 'LASTMOVE', (px, py), dir_move(LASTMOVE)
+                if LASTMOVE in (UP, DOWN) and LASTMOVE != ey: pass
+                elif LASTMOVE in (LEFT, RIGHT) and LASTMOVE != ex: pass
                 else:
-                    for _ in range(4):
-                        c, d = next_pos(x, y, imove)
-                        if BOARD[d][c] != BOARD[y][x]: break
-                        c, d = next_pos(px, py, imove)
-                        if BOARD[d][c] != BOARD[py][px]: break
-                    else:
-                        if imove == ey: move = ex
-                        else: move = ey
-                        print >> sys.stderr, 'B', dir_move(move)
-                        bpass = True
+                    move = flood_dirs[1]
+                    ratio = 0.50
+
+            if distance4(x, y, px, py) < 8 and (
+                    x < 3 or y < 3 or x > W - 4 or y > H - 4) and (
+                    px < 3 or py < 3 or px > W - 4 or py > H - 4):
+                ratio = 0.98
+            elif distance4(x, y, px, py) < 8 and (
+                    x < 5 or y < 5 or x > W - 6 or y > H - 6) and (
+                    px < 5 or py < 5 or px > W - 6 or py > H - 6):
+                ratio = 0.96
 
             if move == floods_move: pass
             elif flood_map[move] == flood_map[floods_move]: pass
-            elif not bpass and flood_map[move] > 0.63 * flood_map[floods_move]: pass
-            elif not bpass: move = floods_move
+            elif flood_map[move] > ratio * flood_map[floods_move]: pass
+            else: move = floods_move
 
-            print >> sys.stderr, '130 < dist2 < 5000', dir_move(move)
+            print >> sys.stderr, '40 < dist2 < 5000', dir_move(move)
 
 
         # elif dist2 <= 40:
@@ -569,7 +476,7 @@ def head_min(x, y):
 
                 ngbs = neighbors_clean(board, px, py)
                 if len(ngbs) == 0:
-                    return 1 # best_score
+                    return best_score
 
                 board_fill = None
 
@@ -599,13 +506,10 @@ def head_min(x, y):
                 best_score = 0
                 best_move = None
 
-                # LASTMOVE
-                neighbors = dict()
-                for dir in move_dirs:
-                    c, d = next_pos(x, y, dir)
-                    neighbors[dir] = len(neighbors_clean(board, c, d))
-
-                dirs2 = sorted(move_dirs, key=lambda x: neighbors[x])
+                dirs2 = sorted(move_dirs, key=lambda x: move_map[x])
+                if LASTMOVE in move_dirs:
+                    dirs2.remove(LASTMOVE)
+                    dirs2.insert(0, LASTMOVE)
 
                 for dir in dirs2:
                     c, d = next_pos(x, y, dir)
@@ -661,11 +565,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 5, 12
-    LASTMOVE = DOWN
+    LASTMOVE = LEFT
     HEADS = {1002: (3, 11)}
     HEADS_F = {}
     assert DOWN == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     # sys.exit()
 
@@ -685,11 +589,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 4, 4
-    LASTMOVE = LEFT
+    LASTMOVE = UP
     HEADS = {1002: (8, 6), 1003: (4, 2)}
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     W, H = 10, 10
@@ -710,8 +614,9 @@ if __name__ == '__main__':
     LASTMOVE = LEFT
     HEADS = {1002: (1, 6)}
     HEADS_F = {}
-    assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert UP == best_move_fast(mx, my)
+    # assert DOWN != best_move_fast(mx, my)
+    assert time() - START < 0.095
 
 
     W, H = 10, 10
@@ -730,8 +635,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 3, 8
     assert LEFT == default_move(mx, my)
-    assert time() - START < 0.099
-    # assert UP == default_move(mx, my)
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -748,7 +652,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 2, 8
     assert DOWN == default_move(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0, 1002,    0,    0,    0,    0,    0]
@@ -765,8 +669,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 4, 8
     assert LEFT == default_move(mx, my)
-    assert time() - START < 0.099
-    # assert RIGHT == default_move(mx, my)
+    assert time() - START < 0.095
 
     print >> sys.stderr, '\n\n'
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -784,7 +687,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 3, 9
     assert RIGHT == default_move(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0, 1002,    0,    0,    0,    0,    0]
@@ -801,7 +704,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 4, 9
     assert RIGHT == default_move(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -818,7 +721,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 1, 9
     assert LEFT == default_move(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -835,7 +738,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 8, 6
     assert LEFT == default_move(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -852,7 +755,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 8, 8
     assert LEFT == default_move(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0, 1002,    0,    0,    0]
@@ -869,7 +772,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 9, 4
     assert UP == default_move(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0, 1002,    0,    0,    0]
@@ -886,7 +789,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 9, 4
     assert LEFT == default_move(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
@@ -903,7 +806,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 9, 3
     assert LEFT == default_move(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001]
@@ -920,7 +823,7 @@ if __name__ == '__main__':
     START = time()
     mx, my = 8, 3
     assert UP == default_move(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     # ##  ##  ##  ##  ##  ##  ##  ##
@@ -942,7 +845,7 @@ if __name__ == '__main__':
     HEADS = {1002: (4, 6)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     W, H = 5, 5
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -957,9 +860,8 @@ if __name__ == '__main__':
     LASTMOVE = LEFT
     HEADS = {1002: (1, 2)}
     HEADS_F = {}
-    # assert UP == best_move_fast(mx, my)
-    assert DOWN == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert UP == best_move_fast(mx, my)
+    assert time() - START < 0.095
 
 
     W, H = 15, 10
@@ -1001,27 +903,35 @@ if __name__ == '__main__':
 #
     # sys.exit()
 
+    W, H = 15, 15
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
     BOARD[1] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
     BOARD[2] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
     BOARD[3] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    BOARD[4] = [   0, 1001, 1001, 1001,    0,    0,    0,    0,    0, 1002, 1002, 1002,    0,    0,    0]
+    BOARD[4] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
     BOARD[5] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    BOARD[6] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[6] = [   0, 1001, 1001, 1001, 1001, 1001, 1001,    0,    0, 1002, 1002, 1002,    0,    0,    0]
     BOARD[7] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
     BOARD[8] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
     BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[10] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[11] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[12] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[13] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
+    BOARD[14] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
     DEBUG = True
     START = time()
-    mx, my = 3, 4
-    LASTMOVE = UP
-    HEADS = {1002: (9, 4)}
+    mx, my = 6, 6
+    LASTMOVE = RIGHT
+    HEADS = {1002: (9, 6)}
     HEADS_F = {}
-    assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert DOWN == best_move_fast(mx, my)
+    assert time() - START < 0.095
+    # sys.exit()
 
 
+    W, H = 15, 10
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0]
     BOARD[1] = [   0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1036,10 +946,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 5, 0
+    LASTMOVE = UP
     HEADS = {1002: (5, 9)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1001, 1001, 1001, 1001]
@@ -1055,10 +966,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 11, 5
+    LASTMOVE = DOWN
     HEADS = {1002: (12, 3)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1078,7 +990,7 @@ if __name__ == '__main__':
     HEADS = {1002: (1, 6)}
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1099,7 +1011,7 @@ if __name__ == '__main__':
     HEADS = {1002: (4, 6)}
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
 
@@ -1120,7 +1032,7 @@ if __name__ == '__main__':
     HEADS = {1002: (2, 5)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1140,7 +1052,7 @@ if __name__ == '__main__':
     HEADS = {1002: (0, 5)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1179,7 +1091,7 @@ if __name__ == '__main__':
     LASTMOVE = RIGHT
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1195,11 +1107,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 0, 3
+    LASTMOVE = UP
     HEADS = {1002: (0, 6)}
     HEADS_F = {}
-    # assert RIGHT == best_move_fast(mx, my)
-    assert UP == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert RIGHT == best_move_fast(mx, my)
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1215,10 +1127,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 1, 4
+    LASTMOVE = LEFT
     HEADS = {1002: (0, 6)}
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1238,7 +1151,7 @@ if __name__ == '__main__':
     HEADS = {1002: (7, 2)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1255,10 +1168,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 3, 9
+    LASTMOVE = DOWN
     HEADS = {1002: (1, 8)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0,    0]
@@ -1278,7 +1192,7 @@ if __name__ == '__main__':
     HEADS = {1002: (8, 9)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0,    0]
@@ -1298,7 +1212,7 @@ if __name__ == '__main__':
     HEADS = {1002: (7, 9)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1002, 1001,    0,    0]
@@ -1314,10 +1228,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 12, 9
+    LASTMOVE = DOWN
     HEADS = {1002: (11, 8)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1002, 1001,    0,    0]
@@ -1333,10 +1248,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 12, 9
+    LASTMOVE = DOWN
     HEADS = {1002: (10, 8)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1002, 1001,    0,    0]
@@ -1352,10 +1268,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 12, 9
+    LASTMOVE = DOWN
     HEADS = {1002: (9, 8)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1002, 1001,    0,    0]
@@ -1371,10 +1288,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 12, 9
+    LASTMOVE = DOWN
     HEADS = {1002: (8, 8)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1002, 1001,    0,    0]
@@ -1390,10 +1308,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 12, 9
+    LASTMOVE = DOWN
     HEADS = {1002: (8, 6)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1409,10 +1328,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 2, 6
+    LASTMOVE = RIGHT
     HEADS = {1002: (4, 5)}
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1429,10 +1349,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 2, 6
+    LASTMOVE = RIGHT
     HEADS = {1002: (4, 5)}
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0]
@@ -1452,7 +1373,7 @@ if __name__ == '__main__':
     HEADS = {1002: (6, 4)}
     HEADS_F = {}
     assert DOWN == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0]
@@ -1472,7 +1393,7 @@ if __name__ == '__main__':
     HEADS = {1002: (6, 7)}
     HEADS_F = {}
     assert DOWN == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     # W, H = 30, 20
     # BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1508,7 +1429,7 @@ if __name__ == '__main__':
     HEADS = {}
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1527,7 +1448,7 @@ if __name__ == '__main__':
     HEADS = {}
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1543,11 +1464,12 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 3, 7
+    LASTMOVE = RIGHT
     HEADS = {1002: (5, 7)}
     HEADS_F = {}
     assert UP == best_move_fast(mx, my)
     # assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0, 1001,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1563,10 +1485,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 1, 0
+    LASTMOVE = UP
     HEADS = {1002: (4, 1)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1588,7 +1511,7 @@ if __name__ == '__main__':
     HEADS_F = {}
     # assert DOWN == best_move_fast(mx, my)
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 1002, 1002, 1002, 1002, 1002]
@@ -1608,7 +1531,7 @@ if __name__ == '__main__':
     HEADS = {1002: (14, 7)}
     HEADS_F = {}
     assert DOWN == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1624,11 +1547,12 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 7, 5
-    LASTMOVE = RIGHT
+    LASTMOVE = DOWN
     HEADS = {1002: (5, 6)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    # assert LEFT != best_move_fast(mx, my)
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1645,11 +1569,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 1, 5
-    LASTMOVE = RIGHT
+    LASTMOVE = UP
     HEADS = {1002: (2, 4)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1666,10 +1590,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 2, 1
+    LASTMOVE = UP
     HEADS = {1002: (3, 0)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1690,7 +1615,7 @@ if __name__ == '__main__':
     HEADS = {1002: (13, 7)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1710,7 +1635,7 @@ if __name__ == '__main__':
     HEADS = {1002: (14, 7)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     W, H = 30, 20
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1744,7 +1669,7 @@ if __name__ == '__main__':
     HEADS = {1002: (28, 17), 1003: (9, 8)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     # sys.exit()
 
@@ -1767,7 +1692,7 @@ if __name__ == '__main__':
     HEADS = {1002: (9, 5)}
     HEADS_F = {}
     assert DOWN == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1788,7 +1713,7 @@ if __name__ == '__main__':
     HEADS_F = {}
     assert DOWN == best_move_fast(mx, my)
     # assert RIGHT != best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
 
@@ -1805,12 +1730,12 @@ if __name__ == '__main__':
     BOARD[9] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
     DEBUG = True
     START = time()
-    LASTMOVE = LEFT
+    LASTMOVE = DOWN
     mx, my = 4, 5
     HEADS = {1002: (6, 6)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1831,7 +1756,7 @@ if __name__ == '__main__':
     HEADS_F = {}
     # assert RIGHT == best_move_fast(mx, my)
     assert DOWN == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1848,11 +1773,12 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 4, 4
+    LASTMOVE = RIGHT
     HEADS = {1002: (10, 2), 1003: (10, 5)}
     HEADS_F = {}
     # assert UP == best_move_fast(mx, my)
     assert DOWN == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1868,10 +1794,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 12, 4
+    LASTMOVE = LEFT
     HEADS = {1002: (8, 4), 1003: (12, 2)}
     HEADS_F = {}
-    assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert DOWN == best_move_fast(mx, my)
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1887,10 +1814,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 1, 9
+    LASTMOVE = DOWN
     HEADS = {1002: (7, 7)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1906,10 +1834,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 10, 7
+    LASTMOVE = UP
     HEADS = {1002: (10, 5), 1003: (13, 5)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0, 1001,    0,    0,    0,    0,    0]
@@ -1928,8 +1857,9 @@ if __name__ == '__main__':
     LASTMOVE = UP
     HEADS = {1002: (10, 1)}
     HEADS_F = {}
-    assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    # assert LEFT == best_move_fast(mx, my)
+    assert RIGHT == best_move_fast(mx, my)
+    assert time() - START < 0.095
 
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
@@ -1946,11 +1876,12 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 8, 7
+    LASTMOVE = LEFT
     HEADS = {1002: (7, 5)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
     # assert UP != best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1966,10 +1897,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 1, 4
+    LASTMOVE = RIGHT
     HEADS = {1002: (2, 2), 1003: (5, 6)}
     HEADS_F = {}
     assert RIGHT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
     BOARD[0] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
@@ -1985,10 +1917,11 @@ if __name__ == '__main__':
     DEBUG = True
     START = time()
     mx, my = 13, 4
+    LASTMOVE = LEFT
     HEADS = {1002: (12, 2), 1003: (9, 6)}
     HEADS_F = {}
     assert LEFT == best_move_fast(mx, my)
-    assert time() - START < 0.099
+    assert time() - START < 0.095
 
 
     # - Is there a snake or wall directly in front of me? If so, turn into the area [left or right]
