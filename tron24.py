@@ -194,8 +194,8 @@ def flood_count_2(board_copy, board_fill, x, y, moved=END):
             # for cell in row:
                 # sys.stderr.write('{0: >6}'.format(cell))
             # sys.stderr.write('\n')
-        # print >> sys.stderr, time() - START
         # print >> sys.stderr, 'flood_count', count, DIR[moved]
+        # print >> sys.stderr, 'flood_count', count, time() - START
     return count
 
 
@@ -243,13 +243,8 @@ def default_move(x, y):
             next_map[dir] = 0
             c, d = next_pos(x, y, dir)
             board_copy[d][c] = 1
-
             for ngb in neighbors_clean(board_copy, c, d):
-                e, f = ngb
-                board_copy[f][e] = 1
                 next_map[dir] = max(next_map[dir], flood_count(board_copy, *ngb))
-                board_copy[f][e] = 0
-
             board_copy[d][c] = 0
 
         flood_dirs.sort(key=lambda x: move_map[x], reverse=False)
@@ -348,7 +343,6 @@ def max_play(board, x, y, px, py, board_fill, n):
         else:
             score = min_play(board, c, d, px, py, n + 1)
 
-        # print >> sys.stderr, '.' * n, 'max_play', (c, d), (px, py), score
         board[d][c] = 0
         if score > best_score:
             best_score = score
@@ -377,8 +371,9 @@ def min_play(board, x, y, px, py, n):
             board_fill = BOARDS_FILL[(c, d)]
 
         score = max_play(board, x, y, c, d, board_fill, n + 1)
-        # print >> sys.stderr, '.' * n, 'min_play', (x, y), (c, d), score
         board[d][c] = 0
+        # print >> sys.stderr, '.' * n, 'min_play', (x, y), (c, d), score
+
         if score < best_score:
             best_score = score
 
@@ -482,27 +477,17 @@ def head_min(x, y):
             move = best_dest(x, y, px, py)
             print >> sys.stderr, 'best_dest', (px, py), dir_move(move)
             if move is None: continue
-            ratio = 0.63
+            ratio = 0.86
 
             dirs2 = [dir for dir in dirs if dir in flood_dirs]
 
-            if distance4(x, y, px, py) < 8 and (
-                    x < 2 or y < 2 or x > W - 3 or y > H - 3):
+            if x < 2 or y < 2 or x > W - 3 or y > H - 3:
                 ratio = 0.98
 
-            elif distance4(x, y, px, py) < 8 and (
-                    x < 3 or y < 3 or x > W - 4 or y > H - 4):
+            elif x < 3 or y < 3 or x > W - 4 or y > H - 4:
                 ratio = 0.96
 
-            elif distance4(x, y, px, py) < 6 and (
-                    x < 4 or y < 4 or x > W - 5 or y > H - 5):
-                ratio = 0.93
-
-            elif distance4(x, y, px, py) < 6 and (
-                    x < 5 or y < 5 or x > W - 6 or y > H - 6):
-                ratio = 0.86
-
-            elif (len(dirs2) == 1 and (dist2 == 90 or dist2 == 250) and
+            if (len(dirs2) == 1 and (dist2 == 90 or dist2 == 250) and
                     len(HEADS_F) == 1 and len(flood_dirs) == 3):
                 print >> sys.stderr, 'LASTMOVE', (px, py), dir_move(LASTMOVE)
                 if LASTMOVE in (UP, DOWN) and LASTMOVE != ey: pass
@@ -519,7 +504,7 @@ def head_min(x, y):
             print >> sys.stderr, '40 < dist2,', ratio, dir_move(move)
 
 
-        elif dist2 == 10:
+        elif dist2 in (10, 40):
             flood_map = dict()
 
             for dir in move_dirs:
