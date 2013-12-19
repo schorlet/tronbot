@@ -231,6 +231,72 @@ def default_move(x, y):
     return move
 
 
+def __default_move2(board, x, y, n=1):
+    ngbs = neighbors_clean(board, x, y)
+    if len(ngbs) == 0:
+        return n
+
+    best_score = 0
+    board_move = copy.deepcopy(board)
+
+    for c, d in ngbs:
+        board_move[d][c] = board[y][x]
+        if n == 2:
+            board_copy = copy.deepcopy(board_move)
+            score = n + flood_count_2(board_copy, board_move, c, d)
+        else:
+            score = __default_move2(board_move, c, d, n + 1)
+        board_move[d][c] = 0
+
+        if score > best_score:
+            best_score = score
+
+        if time() - START > 0.09:
+            break
+    return best_score
+
+
+def default_move2(x, y):
+    move_map = {
+            UP:    max_move(x, y, UP),
+            RIGHT: max_move(x, y, RIGHT),
+            DOWN:  max_move(x, y, DOWN),
+            LEFT:  max_move(x, y, LEFT) }
+    move_dirs = tuple(k for k, v in move_map.items() if v > 0)
+    move_dirs  = sorted(move_dirs)
+
+    # move_dirs == 0
+    if len(move_dirs) == 0:
+        return None
+
+    # move_dirs == 1
+    elif len(move_dirs) == 1:
+        return move_dirs[0]
+
+
+    best_scores = dict()
+    board = copy.deepcopy(BOARD)
+
+    for dir in move_dirs:
+        c, d = next_pos(x, y, dir)
+        board[d][c] = board[y][x]
+        best_scores[dir] = __default_move2(board, c, d)
+        board[d][c] = 0
+        print >> sys.stderr, 'default_move2', best_scores[dir], DIR[dir], time() - START
+        if time() - START > 0.08:
+            break
+
+    best_dirs = sorted(best_scores.items(), key=itemgetter(1))
+    max_flood = best_dirs[-1][1]
+    best_dirs = [k for k, v in best_dirs if v == max_flood]
+
+    if len(best_dirs) > 1:
+        best_dirs.sort(key=lambda x: move_map[x], reverse=False)
+
+    best_move = best_dirs[0]
+    return best_move
+
+
 def __best_dest(x, y, hx, hy, limit):
     board_copy = copy.deepcopy(BOARD)
     paths = None
@@ -323,8 +389,9 @@ def min_play(board, x, y, px, py, n):
 
         if n == 3:
             if not (c, d) in BOARDS_FILL:
-                head = {board[py][px]: (c, d)}
-                BOARDS_FILL[(c, d)] = fill_board(board, head)
+                heads = dict((k, HEADS[k]) for k,v in HEADS_F.items())
+                heads[board[py][px]] = (c, d)
+                BOARDS_FILL[(c, d)] = fill_board(board, heads)
             board_fill = BOARDS_FILL[(c, d)]
 
         score = max_play(board, x, y, c, d, board_fill, n + 1)
@@ -486,7 +553,7 @@ def head_min(x, y):
 
 def best_move_fast(x, y):
     move = head_min(x, y)
-    if move is None: move = default_move(x, y)
+    if move is None: move = default_move2(x, y)
     if move is None: move = END
     return move
 

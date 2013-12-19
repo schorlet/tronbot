@@ -530,7 +530,7 @@ def head_min(x, y):
 def best_move_fast(x, y):
     move = head_min(x, y)
     BOARDS_FILL.clear()
-    if move is None: move = default_move(x, y)
+    if move is None: move = default_move2(x, y)
     if move is None: move = END
     print >> sys.stderr, DIR[move], time() - START
     return move
@@ -539,31 +539,25 @@ def best_move_fast(x, y):
 if __name__ == '__main__':
     ID_START = 1001
 
-    # W, H = 15, 15
-    # BOARD = [[0 for _ in range(W)] for _ in range(H)]
-    # BOARD[0] =  [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[1] =  [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[2] =  [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[3] =  [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[4] =  [   0,    0,    0, 1001, 1001, 1001, 1001, 1001, 1001, 1001, 1001, 1001, 1001, 1001, 1001]
-    # BOARD[5] =  [   0,    0, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002]
-    # BOARD[6] =  [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[7] =  [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[8] =  [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[9] =  [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[10] = [   0,    0,    0,    0, 1002, 1002,    0, 1001,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[11] = [   0,    0,    0, 1002, 1002,    0,    0, 1001,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[12] = [   0,    0,    0,    0,    0, 1001, 1001, 1001,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[13] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    # BOARD[14] = [   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0]
-    # DEBUG = True
-    # START = time()
-    # mx, my = 5, 12
-    # LASTMOVE = LEFT
-    # HEADS = {1002: (3, 11)}
-    # HEADS_F = {}
-    # assert DOWN == best_move_fast(mx, my)
-    # assert time() - START < 0.095
+
+    W, H = 5, 5
+    BOARD = [[0 for _ in range(W)] for _ in range(H)]
+    BOARD[0] = [   0,    0,    0,    0,    0]
+    BOARD[1] = [   0,    0,    0,    0,    0]
+    BOARD[2] = [   0,    0,    0,    0,    0]
+    BOARD[3] = [   0,    0,    0, 1002, 1002]
+    BOARD[4] = [1001,    0,    0,    0,    0]
+    DEBUG = True
+    START = time()
+    mx, my = 0, 4
+    LASTMOVE = None
+    HEADS = {}
+    HEADS_F = {}
+    assert UP == default_move2(mx, my)
+    assert time() - START < 0.095
+
+    sys.exit()
+
 
     W, H = 15, 15
     BOARD = [[0 for _ in range(W)] for _ in range(H)]
