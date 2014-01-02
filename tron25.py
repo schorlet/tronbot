@@ -441,15 +441,15 @@ def head_min(x, y):
     best_move = move_dirs[0]
 
     if time() - START < 0.08:
-        scores = set(best_scores.values())
         dist2 = distance2(x, y, px, py)
-
-        if dist2 > 50 and len(scores) == 1:
-                move, path = best_dest(x, y, px, py)
-                if move in move_dirs:
+        if dist2 > 380:
+            move, path = best_dest(x, y, px, py)
+            if move != best_move and move in best_scores:
+                if best_scores[move] > 0.8 * best_scores[best_move]:
                     best_move = move
 
-        elif len(scores) == 1:
+        scores = set(best_scores.values())
+        if len(scores) == 1:
             distances = dict()
             for move in move_dirs:
                 c, d = next_pos(x, y, move)
