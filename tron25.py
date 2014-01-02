@@ -348,10 +348,6 @@ def max_play(board, x, y, px, py, alpha, beta, n):
         if time() - START > 0.09:
             break
 
-        alpha = max(alpha, score)
-        if beta <= alpha:
-            break
-
     return best_score
 
 
@@ -376,10 +372,6 @@ def min_play(board, x, y, px, py, alpha, beta, n):
         if time() - START > 0.09:
             break
 
-        beta = min(beta, score)
-        if beta <= alpha:
-            break
-
     return best_score
 
 
@@ -389,9 +381,8 @@ def evaluate(board, x, y, px, py):
     pid = board[py][px]
     heads[pid] = (px, py)
     counter = fill_board(board, heads, (mid, (x, y)))
-    # if counter[pid] == 0: counter[pid] = 0.1
-    # score = counter[mid]**2 / counter[pid]
-    score = counter[mid] - counter[pid]
+    if counter[pid] == 0: counter[pid] = 1
+    score = 1.0 * counter[mid]**2 / counter[pid]
     return score
 
 
@@ -451,17 +442,21 @@ def head_min(x, y):
 
     if time() - START < 0.08:
         scores = set(best_scores.values())
-        if len(scores) == 1:
-            move, path = best_dest(x, y, px, py)
-            if move in move_dirs:
-                best_move = move
-        else:
-            scores = sorted(best_scores.values(), reverse=True)
-            score0, score1 = scores[0], scores[1]
-            if score1 > score0 * 0.96:
+        dist2 = distance2(x, y, px, py)
+
+        if dist2 > 50 and len(scores) == 1:
                 move, path = best_dest(x, y, px, py)
                 if move in move_dirs:
                     best_move = move
+
+        elif len(scores) == 1:
+            distances = dict()
+            for move in move_dirs:
+                c, d = next_pos(x, y, move)
+                distances[move] = distance2(c, d, px, py)
+            move_dirs.sort(key=lambda x: distances[x])
+            best_move = move_dirs[0]
+
     return best_move
 
 
