@@ -110,7 +110,6 @@ def fill_board(board, heads, me):
     board_fill = copy.deepcopy(board)
 
     for pid, pos in pids:
-        # print >> sys.stderr, 'fill_board', pid, pos
         px, py = pos
         points = [(0, pos)]
         heapq.heapify(points)
@@ -161,12 +160,8 @@ def flood_find(x, y):
     return count
 
 
-def flood_count(x, y):
-    board_copy = copy.deepcopy(BOARD)
-    return flood_count_2(board_copy, x, y)
-
-
-def flood_count_2(board_copy, x, y):
+def flood_count(board, x, y):
+    board_copy = copy.deepcopy(board)
     points = deque([(x, y)])
     count = 0
 
@@ -189,20 +184,19 @@ def default_move(x, y):
     elif len(moves) == 1:
         return moves[0]
 
-    best_scores = dict((move, 0) for move in moves)
+    best_scores = dict((move, 600) for move in moves)
     board_copy = copy.deepcopy(BOARD)
 
-    def dm_move(px, py, limit):
+    def dm_move(px, py, limit, rec=1):
         if limit == 0:
-            board_count = copy.deepcopy(board_copy)
-            return flood_count_2(board_count, px, py)
+            return rec + flood_count(board_copy, px, py)
 
         neighbors = neighbors_clean(board_copy, px, py)
         count = 0
 
         for c, d in neighbors:
             board_copy[d][c] = board_copy[py][px]
-            count = max(count, dm_move(c, d, limit - 1))
+            count = max(count, dm_move(c, d, limit - 1, rec + 1))
             board_copy[d][c] = 0
         return count
 
@@ -210,8 +204,13 @@ def default_move(x, y):
         for move in moves:
             c, d = next_pos(x, y, move)
             board_copy[d][c] = board_copy[y][x]
-            best_scores[move] += dm_move(c, d, i)
+            best_scores[move] = min(best_scores[move], dm_move(c, d, i))
             board_copy[d][c] = 0
+
+    print >> sys.stderr, 'default_move:',
+    for move, score in best_scores.items():
+        print >> sys.stderr, DIR[move], '%.2f' % score, ';',
+    print >> sys.stderr
 
     best_dirs = best_scores.keys()
     best_dirs.sort(key=lambda x: best_scores[x], reverse=True)
@@ -220,6 +219,10 @@ def default_move(x, y):
 
     if len(scores) == len(moves):
         best_move = best_dirs[0]
+        if len(moves) == 2:
+            move = best_dirs[1]
+            if best_scores[move] >= best_scores[best_move] - 1:
+                best_move = move
 
     else:
         max_score = max(scores)
@@ -419,7 +422,6 @@ def head_min(x, y):
             else:
                 best_scores[move] = min_play(board, c, d, px, py, alpha, beta, n)
             board[d][c] = 0
-            # print >> sys.stderr, 'minimax', n, DIR[move], best_scores[move], time() - START
 
             if time() - START > 0.08:
                 break
@@ -440,22 +442,37 @@ def head_min(x, y):
     move_dirs.sort(key=lambda x: best_scores[x], reverse=True)
     best_move = move_dirs[0]
 
-    if time() - START < 0.08:
-        dist2 = distance2(x, y, px, py)
-        if dist2 > 380:
-            move, path = best_dest(x, y, px, py)
-            if move != best_move and move in best_scores:
-                if best_scores[move] > 0.8 * best_scores[best_move]:
-                    best_move = move
+    # print >> sys.stderr, 'minimax:',
+    # for move, score in best_scores.items():
+        # print >> sys.stderr, DIR[move], '%.2f' % score, ';',
+    # print >> sys.stderr
 
-        scores = set(best_scores.values())
-        if len(scores) == 1:
+    dist2 = distance2(x, y, px, py)
+    if dist2 > 290 and time() - START < 0.08:
+        move, path = best_dest(x, y, px, py)
+        if move != best_move and move in best_scores:
+            if best_scores[move] > 0.8 * best_scores[best_move]:
+                best_move = move
+
+    elif time() - START < 0.09:
+        scores_values = set(best_scores.values())
+        scores = filter(lambda x: x > 1, scores_values)
+
+        if len(scores_values) == 1:
             distances = dict()
             for move in move_dirs:
                 c, d = next_pos(x, y, move)
                 distances[move] = distance2(c, d, px, py)
             move_dirs.sort(key=lambda x: distances[x])
             best_move = move_dirs[0]
+
+        elif len(HEADS_F) == 1 and len(scores) == 3 and (x in (1, W-2) or y in (1, H-2)):
+            move_dirs = best_scores.keys()
+            move_dirs.sort(key=lambda x: best_scores[x])
+            move = move_dirs[0]
+            c, d = next_pos(x, y, move)
+            if c in (0, W-1) or d in (0, H-1):
+                best_move = move
 
     return best_move
 
