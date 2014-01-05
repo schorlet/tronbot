@@ -295,7 +295,8 @@ def __best_dest(x, y, hx, hy):
 
             value2 = board_copy[yy][xx]
             if value2 == 0:
-                value2 = distance2(xx, yy, hx, hy)
+                # value2 = distance2(xx, yy, hx, hy)
+                value2 = distance3(xx, yy, hx, hy)
                 board_copy[yy][xx] = value2
                 heapq.heappush(points, (value2, points2 + [(xx, yy)]))
     return path
@@ -348,6 +349,10 @@ def max_play(board, x, y, px, py, alpha, beta, n):
         if score > best_score:
             best_score = score
 
+        alpha = max(alpha, score)
+        if beta <= alpha:
+            break
+
         if time() - START > 0.09:
             break
 
@@ -371,6 +376,10 @@ def min_play(board, x, y, px, py, alpha, beta, n):
 
         if score < best_score:
             best_score = score
+
+        beta = min(beta, score)
+        if beta <= alpha:
+            break
 
         if time() - START > 0.09:
             break
@@ -401,7 +410,14 @@ def head_min(x, y):
         return None
 
     # heads
-    heads = sorted(HEADS_F.keys(), key=lambda pid: distance2(x, y, *HEADS[pid]))
+    head_paths = dict()
+    head_moves = dict()
+    for pid in HEADS_F:
+        move, path = best_dest(x, y, *HEADS[pid])
+        head_moves[pid] = move
+        head_paths[pid] = len(path)
+
+    heads = sorted(head_paths.keys(), key=lambda pid: head_paths[pid])
     head0 = heads[0]
 
     px, py = HEADS[head0]
@@ -430,12 +446,6 @@ def head_min(x, y):
         scores = set(best_scores.values())
         alpha, beta = min(scores), max(scores)
 
-        if n == 0 and len(move_dirs) > 2 and alpha < 0.66 * beta:
-            del move_dirs[-1]
-
-        if n == 1 and len(move_dirs) > 2:
-            del move_dirs[-1]
-
         if time() - START > 0.08:
             break
 
@@ -448,31 +458,28 @@ def head_min(x, y):
     # print >> sys.stderr
 
     dist2 = distance2(x, y, px, py)
-    if dist2 > 290 and time() - START < 0.08:
-        move, path = best_dest(x, y, px, py)
-        if move != best_move and move in best_scores:
-            if best_scores[move] > 0.8 * best_scores[best_move]:
-                best_move = move
-
-    elif time() - START < 0.09:
+    if dist2 == 20 and len(move_dirs) == 2:
         scores_values = set(best_scores.values())
         scores = filter(lambda x: x > 1, scores_values)
+        if len(scores) == 2:
+            score0 = scores[0]
+            score1 = scores[1]
+            if score0 > score1 * 0.9 and score1 > score0 * 0.9:
+                for move in move_dirs:
+                    if move in dirs:
+                        best_move = move
+                        break
 
-        if len(scores_values) == 1:
-            distances = dict()
-            for move in move_dirs:
-                c, d = next_pos(x, y, move)
-                distances[move] = distance2(c, d, px, py)
-            move_dirs.sort(key=lambda x: distances[x])
-            best_move = move_dirs[0]
-
-        elif len(HEADS_F) == 1 and len(scores) == 3 and (x in (1, W-2) or y in (1, H-2)):
-            move_dirs = best_scores.keys()
-            move_dirs.sort(key=lambda x: best_scores[x])
-            move = move_dirs[0]
-            c, d = next_pos(x, y, move)
-            if c in (0, W-1) or d in (0, H-1):
-                best_move = move
+    elif dist2 == 10 and len(move_dirs) == 2:
+        scores_values = set(best_scores.values())
+        scores = filter(lambda x: x > 1, scores_values)
+        if len(scores) == 2:
+            score0 = scores[0]
+            score1 = scores[1]
+            if score0 > score1 * 0.9 and score1 > score0 * 0.9:
+                c, d = dirs[0]
+                if (c * -1, d * -1) == best_move:
+                    best_move = move_dirs[1]
 
     return best_move
 
