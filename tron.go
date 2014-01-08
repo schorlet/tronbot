@@ -1,27 +1,30 @@
 package main
 
 import (
+    "container/heap"
     "fmt"
-    "time"
     "math"
     "os"
     "sort"
-    "container/heap"
+    "time"
 )
 
 type Move struct {
     a, b int
 }
+
 func (move Move) String() string {
     return DIR[move]
 }
 func (move Move) Inverse(other Move) bool {
-    return move == Move {other.a * -1, other.b * -1}
+    return move == Move{other.a * -1, other.b * -1}
 }
+
 type ByScore struct {
-    moves []Move
+    moves  []Move
     scores map[Move]float64
 }
+
 func (bs ByScore) Len() int {
     return len(bs.moves)
 }
@@ -36,15 +39,18 @@ func (bs ByScore) Less(i, j int) bool {
 type Point struct {
     x, y int
 }
+
 func (point Point) String() string {
     // return fmt.Sprintf("%+v", point)
     return fmt.Sprintf("(%d, %d)", point.x, point.y)
 }
+
 type PriorityPoints struct {
     priority int
-    points []Point
+    points   []Point
 }
 type PointsQueue []PriorityPoints
+
 func (pqueue PointsQueue) Len() int {
     return len(pqueue)
 }
@@ -59,17 +65,18 @@ func (pqueue *PointsQueue) Push(x interface{}) {
 }
 func (pqueue *PointsQueue) Pop() interface{} {
     oldq := *pqueue
-    ppoints := oldq[len(oldq) - 1]
-    newq := oldq[0:len(oldq) - 1]
+    ppoints := oldq[len(oldq)-1]
+    newq := oldq[0 : len(oldq)-1]
     *pqueue = newq
     return ppoints
 }
 
 type PriorityPoint struct {
     priority int
-    point Point
+    point    Point
 }
 type PointQueue []PriorityPoint
+
 func (pqueue PointQueue) Len() int {
     return len(pqueue)
 }
@@ -84,8 +91,8 @@ func (pqueue *PointQueue) Push(x interface{}) {
 }
 func (pqueue *PointQueue) Pop() interface{} {
     oldq := *pqueue
-    ppoint := oldq[len(oldq) - 1]
-    newq := oldq[0:len(oldq) - 1]
+    ppoint := oldq[len(oldq)-1]
+    newq := oldq[0 : len(oldq)-1]
     *pqueue = newq
     return ppoint
 }
@@ -94,6 +101,7 @@ type SortedMapByValue struct {
     dict map[int]int
     arra []int
 }
+
 func (sm *SortedMapByValue) Len() int {
     return len(sm.dict)
 }
@@ -117,26 +125,27 @@ func sortByValue(dict map[int]int) []int {
 }
 
 const MAX_DURATION time.Duration = 86 * time.Millisecond
-var (
-    UP    = Move {0, -1}
-    RIGHT = Move {1, 0}
-    DOWN  = Move {0, 1}
-    LEFT  = Move {-1, 0}
-    END   = Move {0, 0}
 
-    DIR = map[Move]string {
-        UP: "UP",
+var (
+    UP    = Move{0, -1}
+    RIGHT = Move{1, 0}
+    DOWN  = Move{0, 1}
+    LEFT  = Move{-1, 0}
+    END   = Move{0, 0}
+
+    DIR = map[Move]string{
+        UP:    "UP",
         RIGHT: "RIGHT",
-        DOWN: "DOWN",
-        LEFT: "LEFT",
-        END: "END",
+        DOWN:  "DOWN",
+        LEFT:  "LEFT",
+        END:   "END",
     }
 
-    BOARD [H][W]int
-    HEADS map[int]Point
-    HEADS_F map[int]bool
+    BOARD    [H][W]int
+    HEADS    map[int]Point
+    HEADS_F  map[int]bool
     LASTMOVE Move
-    START time.Time
+    START    time.Time
 )
 
 func clear_pid(pid int) {
@@ -157,7 +166,7 @@ func read_stdin() Point {
     fmt.Scanf("%d %d", &nbj, &mid)
     mid = ID_START + mid
 
-    for pid := ID_START; pid < ID_START + nbj; pid++ {
+    for pid := ID_START; pid < ID_START+nbj; pid++ {
         var x0, y0, x1, y1 int
         fmt.Scanf("%d %d %d %d", &x0, &y0, &x1, &y1)
 
@@ -171,27 +180,27 @@ func read_stdin() Point {
             if pid == mid {
                 mx, my = x1, y1
             } else {
-                HEADS[pid] = Point {x1, y1}
+                HEADS[pid] = Point{x1, y1}
             }
         }
     }
     return Point{mx, my}
 }
 func in_board(point Point) bool {
-    return  0 <= point.x &&
-            0 <= point.y &&
-            point.x < W &&
-            point.y < H
+    return 0 <= point.x &&
+        0 <= point.y &&
+        point.x < W &&
+        point.y < H
 }
 func is_clean(board [H][W]int, point Point) bool {
     return in_board(point) && board[point.y][point.x] == 0
 }
 func next_pos(point Point, move Move) Point {
-    return Point {point.x + move.a, point.y + move.b}
+    return Point{point.x + move.a, point.y + move.b}
 }
 func neighbors(point Point) []Point {
-    neighbors := []Point {}
-    moves := [...]Move {UP, RIGHT, DOWN, LEFT}
+    neighbors := []Point{}
+    moves := [...]Move{UP, RIGHT, DOWN, LEFT}
     for _, move := range moves {
         next := next_pos(point, move)
         if in_board(next) {
@@ -201,8 +210,8 @@ func neighbors(point Point) []Point {
     return neighbors
 }
 func neighbors_clean(board [H][W]int, point Point) []Point {
-    neighbors := []Point {}
-    moves := [...]Move {UP, RIGHT, DOWN, LEFT}
+    neighbors := []Point{}
+    moves := [...]Move{UP, RIGHT, DOWN, LEFT}
     for _, move := range moves {
         next := next_pos(point, move)
         if is_clean(board, next) {
@@ -212,8 +221,8 @@ func neighbors_clean(board [H][W]int, point Point) []Point {
     return neighbors
 }
 func neighbors_clean_heads(board [H][W]int, point Point) []Point {
-    neighbors := []Point {}
-    moves := [...]Move {UP, RIGHT, DOWN, LEFT}
+    neighbors := []Point{}
+    moves := [...]Move{UP, RIGHT, DOWN, LEFT}
     for _, move := range moves {
         next := next_pos(point, move)
         if is_clean(board, next) {
@@ -230,8 +239,8 @@ func neighbors_clean_heads(board [H][W]int, point Point) []Point {
     return neighbors
 }
 func moves_clean(board [H][W]int, point Point) []Move {
-    cleans := []Move {}
-    moves := [...]Move {UP, RIGHT, DOWN, LEFT}
+    cleans := []Move{}
+    moves := [...]Move{UP, RIGHT, DOWN, LEFT}
     for _, move := range moves {
         next := next_pos(point, move)
         if is_clean(board, next) {
@@ -242,27 +251,27 @@ func moves_clean(board [H][W]int, point Point) []Move {
 }
 
 func distance1(src, dest Point) int {
-    return int(math.Abs(float64(src.x - dest.x)) +
-               math.Abs(float64(src.y - dest.y)))
+    return int(math.Abs(float64(src.x-dest.x)) +
+        math.Abs(float64(src.y-dest.y)))
 }
 func distance2(src, dest Point) int {
-    return int(10 * (math.Pow(math.Abs(float64(src.x - dest.x)), 2) +
-                     math.Pow(math.Abs(float64(src.y - dest.y)), 2)))
+    return int(10 * (math.Pow(math.Abs(float64(src.x-dest.x)), 2) +
+        math.Pow(math.Abs(float64(src.y-dest.y)), 2)))
 }
 func distance3(src, dest Point) float64 {
-    return 33 * (math.Sqrt(math.Abs(float64(src.x - dest.x))) +
-                 math.Sqrt(math.Abs(float64(src.y - dest.y))))
+    return 33 * (math.Sqrt(math.Abs(float64(src.x-dest.x))) +
+        math.Sqrt(math.Abs(float64(src.y-dest.y))))
 }
 func distance4(src, dest Point) int {
-    return int(math.Max(math.Abs(float64(src.x - dest.x)),
-                        math.Abs(float64(src.y - dest.y))))
+    return int(math.Max(math.Abs(float64(src.x-dest.x)),
+        math.Abs(float64(src.y-dest.y))))
 }
 func distance5(src, dest Point) int {
-    return int(math.Min(math.Abs(float64(src.x - dest.x)),
-                        math.Abs(float64(src.y - dest.y))))
+    return int(math.Min(math.Abs(float64(src.x-dest.x)),
+        math.Abs(float64(src.y-dest.y))))
 }
 func directions(src, dest Point) map[Move]bool {
-    dirs := map[Move]bool {}
+    dirs := map[Move]bool{}
     xx := dest.x - src.x
     yy := dest.y - src.y
     if xx > 0 {
@@ -307,7 +316,7 @@ func out_of_time() bool {
 func flood_find(board [H][W]int, point Point) int {
     board[point.y][point.x] = -2
 
-    points := []Point {point}
+    points := []Point{point}
     var next Point
     var count int = 0
 
@@ -326,7 +335,7 @@ func flood_find(board [H][W]int, point Point) int {
                 if !exists {
                     HEADS_F[value] = true
                     if len(HEADS_F) == len(HEADS) {
-                        points = []Point {}
+                        points = []Point{}
                         break
                     }
                 }
@@ -341,11 +350,11 @@ func __best_dest(board [H][W]int, src, dest Point) []Point {
     var dest_path []Point
     pqueue := &PointsQueue{}
     heap.Init(pqueue)
-    heap.Push(pqueue, PriorityPoints{0, []Point {src}})
+    heap.Push(pqueue, PriorityPoints{0, []Point{src}})
 
     for dest_path == nil && pqueue.Len() > 0 {
         ppoints := heap.Pop(pqueue).(PriorityPoints)
-        next := ppoints.points[len(ppoints.points) - 1]
+        next := ppoints.points[len(ppoints.points)-1]
         neighbors := neighbors_clean_heads(board, next)
         // debug(ppoints.priority, next)
 
@@ -368,7 +377,7 @@ func __best_dest(board [H][W]int, src, dest Point) []Point {
                 // debug("  ", value2, ngb)
 
                 n := len(ppoints.points)
-                new_points := make([]Point, n, n + 1)
+                new_points := make([]Point, n, n+1)
                 copy(new_points, ppoints.points)
                 new_points = append(new_points, ngb)
 
@@ -382,8 +391,8 @@ func __best_dest(board [H][W]int, src, dest Point) []Point {
     }
     // clean_board(&board)
     // for i, pos := range dest_path {
-        // if i == 0 { continue }
-        // board[pos.y][pos.x] = i
+    // if i == 0 { continue }
+    // board[pos.y][pos.x] = i
     // }
     // debug_board(board)
     return dest_path
@@ -392,7 +401,7 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
     dest_path := __best_dest(board, src, dest)
     if len(dest_path) > 1 {
         next := dest_path[1]
-        move := Move {next.x - src.x, next.y - src.y}
+        move := Move{next.x - src.x, next.y - src.y}
         // debug("best_dest", dest, DIR[move], dest_path, time.Since(START))
         return move, dest_path[1:len(dest_path)]
     }
@@ -401,7 +410,7 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 
 
 func fill_board(board [H][W]int, heads map[int]Point) map[int]int {
-    sources := map[Point]int {}
+    sources := map[Point]int{}
     board_fill := board
 
     // TODO: iterate by less interesting points
@@ -436,7 +445,7 @@ func fill_board(board [H][W]int, heads map[int]Point) map[int]int {
         }
     }
 
-    counter := map[int]int {}
+    counter := map[int]int{}
     for _, pid := range sources {
         counter[pid] += 1
     }
@@ -453,7 +462,7 @@ func fill_board(board [H][W]int, heads map[int]Point) map[int]int {
     return counter
 }
 func max_play(board [H][W]int, next Point, dest Point,
-        alpha float64, beta float64, n int) float64 {
+    alpha float64, beta float64, n int) float64 {
     if out_of_time() {
         return 0.0
     }
@@ -471,7 +480,7 @@ func max_play(board [H][W]int, next Point, dest Point,
         if n == 0 {
             score = evaluate(board, ngb, dest)
         } else {
-            score = max_play(board, ngb, dest, alpha, beta, n - 1)
+            score = max_play(board, ngb, dest, alpha, beta, n-1)
         }
         board[ngb.y][ngb.x] = 0
 
@@ -488,7 +497,7 @@ func max_play(board [H][W]int, next Point, dest Point,
     return best_score
 }
 func min_play(board [H][W]int, next Point, dest Point,
-        alpha float64, beta float64, n int) float64 {
+    alpha float64, beta float64, n int) float64 {
     if out_of_time() {
         return 0.0
     }
@@ -506,7 +515,7 @@ func min_play(board [H][W]int, next Point, dest Point,
         if n == 0 {
             score = evaluate(board, next, ngb)
         } else {
-            score = max_play(board, next, ngb, alpha, beta, n - 1)
+            score = max_play(board, next, ngb, alpha, beta, n-1)
         }
         board[ngb.y][ngb.x] = 0
 
@@ -523,7 +532,7 @@ func min_play(board [H][W]int, next Point, dest Point,
     return best_score
 }
 func evaluate(board [H][W]int, next, dest Point) float64 {
-    heads := map[int]Point {}
+    heads := map[int]Point{}
     for pid, _ := range HEADS_F {
         heads[pid] = HEADS[pid]
     }
@@ -556,8 +565,8 @@ func head_min(board [H][W]int, point Point) Move {
     }
 
     // heads
-    head_paths := map[int]int {}
-    head_moves := map[int]Move {}
+    head_paths := map[int]int{}
+    head_moves := map[int]Move{}
 
     for pid, _ := range HEADS_F {
         move, path := best_dest(board, point, HEADS[pid])
@@ -571,13 +580,15 @@ func head_min(board [H][W]int, point Point) Move {
     dirs := directions(point, dest)
     debug("PID", head0, dest, dirs)
 
-    best_scores := map[Move]float64 {}
+    best_scores := map[Move]float64{}
     var alpha, beta float64
     best_move := END
     m := int(math.Min(2.0, math.Max(6.0, float64(head_paths[head0]))))
 
-    for n:= 0; n < m; n++ {
-        if out_of_time() { break }
+    for n := 0; n < m; n++ {
+        if out_of_time() {
+            break
+        }
 
         for _, move := range move_dirs {
             next := next_pos(point, move)
@@ -587,23 +598,27 @@ func head_min(board [H][W]int, point Point) Move {
                 best_scores[move] = evaluate(board, next, dest)
             } else {
                 score := min_play(board, next, dest, alpha, beta, n)
-                if out_of_time() { break }
+                if out_of_time() {
+                    break
+                }
                 best_scores[move] = score
             }
 
             board[next.y][next.x] = 0
             // debug("minimax", n, move, best_scores[move], time.Since(START))
         }
-        if out_of_time() { break }
+        if out_of_time() {
+            break
+        }
 
         sort.Sort(ByScore{move_dirs, best_scores})
 
-        scores := sort.Float64Slice {}
+        scores := sort.Float64Slice{}
         for _, score := range best_scores {
             scores = append(scores, score)
         }
         sort.Sort(scores)
-        alpha, beta = scores[0], scores[scores.Len() - 1]
+        alpha, beta = scores[0], scores[scores.Len()-1]
         // debug("alpha:", alpha, "beta:", beta)
     }
 
@@ -615,7 +630,7 @@ func head_min(board [H][W]int, point Point) Move {
         if dist2 == 20 {
             score0 := best_scores[best_move]
             score1 := best_scores[move_dirs[1]]
-            if score0 > score1 * 0.9 && score1 > score0 * 0.9 {
+            if score0 > score1*0.9 && score1 > score0*0.9 {
                 for _, move := range move_dirs {
                     if dirs[move] {
                         best_move = move
@@ -626,7 +641,7 @@ func head_min(board [H][W]int, point Point) Move {
         } else if dist2 == 10 {
             score0 := best_scores[best_move]
             score1 := best_scores[move_dirs[1]]
-            if score0 > score1 * 0.9 && score1 > score0 * 0.9 {
+            if score0 > score1*0.9 && score1 > score0*0.9 {
                 for move, _ := range dirs {
                     if best_move.Inverse(move) {
                         best_move = move_dirs[1]
@@ -685,18 +700,18 @@ func dm_move(board [H][W]int, point Point, limit int, rec int) int {
     var count int
     for _, ngb := range neighbors {
         board[ngb.y][ngb.x] = board[point.y][point.x]
-        dm_count := dm_move(board, ngb, limit - 1, rec + 1)
+        dm_count := dm_move(board, ngb, limit-1, rec+1)
         count = int(math.Max(float64(count), float64(dm_count)))
         board[ngb.y][ngb.x] = 0
     }
     return count
 }
 func default_move(board [H][W]int, point Point) Move {
-    moves := [...]Move {UP, RIGHT, DOWN, LEFT}
-    move_dirs := []Move {}
+    moves := [...]Move{UP, RIGHT, DOWN, LEFT}
+    move_dirs := []Move{}
 
-    neighbors := map[Move]float64 {}
-    best_scores := map[Move]float64 {}
+    neighbors := map[Move]float64{}
+    best_scores := map[Move]float64{}
 
     for _, move := range moves {
         count := max_move(board, point, move)
@@ -719,14 +734,18 @@ func default_move(board [H][W]int, point Point) Move {
     for i := 0; i < 20; i++ {
         begin := time.Now()
         for _, move := range move_dirs {
-            if out_of_time() { break }
+            if out_of_time() {
+                break
+            }
             next := next_pos(point, move)
             board[next.y][next.x] = board[point.y][point.x]
             dm_count := dm_move(board, next, i, 1)
             best_scores[move] = math.Min(best_scores[move], float64(dm_count))
             board[next.y][next.x] = 0
         }
-        if out_of_time() { break }
+        if out_of_time() {
+            break
+        }
         duration := time.Since(begin)
         limit := time.Since(START) + (3 * duration)
         if limit > MAX_DURATION {
@@ -741,7 +760,7 @@ func default_move(board [H][W]int, point Point) Move {
 
     if best_scores[best_move] == best_scores[alt_move] {
         // debug("neighbors", neighbors)
-        move_dirs = []Move {best_move, alt_move}
+        move_dirs = []Move{best_move, alt_move}
         sort.Sort(ByScore{move_dirs, neighbors})
         best_move = move_dirs[1]
     }
@@ -762,6 +781,7 @@ func best_move_fast(board [H][W]int, point Point) Move {
 
 const W, H int = 30, 20
 const ID_START int = 10001
+
 func main() {
     for {
         point := read_stdin()
