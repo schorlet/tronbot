@@ -391,8 +391,8 @@ func __best_dest(board [H][W]int, src, dest Point) []Point {
     }
     // clean_board(&board)
     // for i, pos := range dest_path {
-    // if i == 0 { continue }
-    // board[pos.y][pos.x] = i
+        // if i == 0 { continue }
+        // board[pos.y][pos.x] = i
     // }
     // debug_board(board)
     return dest_path
@@ -480,7 +480,7 @@ func max_play(board [H][W]int, next Point, dest Point,
         if n == 0 {
             score = evaluate(board, ngb, dest)
         } else {
-            score = max_play(board, ngb, dest, alpha, beta, n-1)
+            score = min_play(board, ngb, dest, alpha, beta, n-1)
         }
         board[ngb.y][ngb.x] = 0
 
@@ -583,9 +583,8 @@ func head_min(board [H][W]int, point Point) Move {
     best_scores := map[Move]float64{}
     var alpha, beta float64
     best_move := END
-    m := int(math.Min(2.0, math.Max(6.0, float64(head_paths[head0]))))
 
-    for n := 0; n < m; n++ {
+    for n := 0; n < 5; n++ {
         if out_of_time() {
             break
         }
@@ -619,7 +618,10 @@ func head_min(board [H][W]int, point Point) Move {
         }
         sort.Sort(scores)
         alpha, beta = scores[0], scores[scores.Len()-1]
-        // debug("alpha:", alpha, "beta:", beta)
+        debug(n, "alpha:", alpha, "beta:", beta)
+        if alpha < 0.01 {
+            break
+        }
     }
 
     sort.Sort(ByScore{move_dirs, best_scores})
@@ -779,17 +781,17 @@ func best_move_fast(board [H][W]int, point Point) Move {
     return move
 }
 
-const W, H int = 30, 20
-const ID_START int = 10001
+// const W, H int = 30, 20
+// const ID_START int = 10001
 
-func main() {
-    for {
-        point := read_stdin()
-        START = time.Now()
-        LASTMOVE = best_move_fast(BOARD, point)
-        fmt.Println(LASTMOVE)
-    }
-}
+// func main() {
+    // for {
+        // point := read_stdin()
+        // START = time.Now()
+        // LASTMOVE = best_move_fast(BOARD, point)
+        // fmt.Println(LASTMOVE)
+    // }
+// }
 
 
 // func simulation(board [H][W]int, point Point) {
@@ -811,10 +813,10 @@ func main() {
         // }
     // }
 // }
-// const ID_START int = 1001
-// func main() {
-    // test1()
-// }
+const ID_START int = 1001
+func main() {
+    test12()
+}
 // const W, H int = 10, 10
 // func test1() {
     // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
@@ -834,8 +836,46 @@ func main() {
     // HEADS = map[int]Point {1002: Point {7, 4}, 1003: Point {1, 1}}
     // LASTMOVE = best_move_fast(BOARD, me)
 // }
+// const W, H int = 10, 10
+// func test11() {
+    // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    // one := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    // two := [10]int{   0,    0,    0,    0,    0,    0,    0, 1002,    0,    0}
+    // thr := [10]int{   0, 1002, 1002, 1002, 1002, 1002, 1002, 1002,    0,    0}
+    // fou := [10]int{1002, 1001, 1001, 1001, 1001, 1001, 1001, 1001, 1001,    0}
+    // fiv := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    // six := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    // sev := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    // eig := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    // nin := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
+    // START = time.Now()
+    // me := Point {8, 4}
+    // HEADS_F = map[int]bool {}
+    // HEADS = map[int]Point {1002: Point {7, 2}}
+    // LASTMOVE = best_move_fast(BOARD, me)
+// }
+const W, H int = 10, 10
+func test12() {
+    zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    one := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    two := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    thr := [10]int{   0,    0,    0,    0,    0, 1002,    0,    0,    0,    0}
+    fou := [10]int{   0,    0, 1001, 1001,    0, 1002,    0,    0,    0,    0}
+    fiv := [10]int{   0,    0, 1001, 1001,    0, 1002,    0,    0,    0,    0}
+    six := [10]int{   0,    0, 1001, 1001,    0, 1002,    0,    0,    0,    0}
+    sev := [10]int{   0,    0, 1001, 1001,    0, 1002,    0,    0,    0,    0}
+    eig := [10]int{   0,    0, 1001,    0,    0, 1002,    0,    0,    0,    0}
+    nin := [10]int{   0,    0, 1001,    0,    0, 1002,    0,    0,    0,    0}
+    BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
+    START = time.Now()
+    me := Point {2, 9}
+    HEADS_F = map[int]bool {}
+    HEADS = map[int]Point {1002: Point {5, 9}}
+    LASTMOVE = best_move_fast(BOARD, me)
+}
 // const W, H int = 4, 7
-// func test2() {
+// func test21() {
     // zer := [4]int{   0, 1003,    0,    0}
     // one := [4]int{   0, 1003,    0,    0}
     // two := [4]int{   0,    0,    0,    0}
@@ -851,7 +891,7 @@ func main() {
     // simulation(BOARD, me)
 // }
 // const W, H int = 10, 10
-// func test3() {
+// func test22() {
     // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
     // one := [10]int{1003, 1003,    0,    0,    0,    0,    0,    0,    0,    0}
     // two := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
