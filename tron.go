@@ -553,6 +553,20 @@ func evaluate(board [H][W]int, next, dest Point) float64 {
     return score
 }
 
+func couloir(board [H][W]int, path []Point) bool {
+    var alt_move bool
+    path_len := len(path)
+    for count, point := range path {
+        board[point.y][point.x] = count + 1
+        if len(neighbors_clean(board, point)) == 1 {
+            if float64(count) > 0.4 * float64(path_len) {
+                alt_move = true
+            }
+            break
+        }
+    }
+    return alt_move
+}
 
 func head_min(board [H][W]int, point Point) Move {
     flood_find(board, point)
@@ -566,26 +580,33 @@ func head_min(board [H][W]int, point Point) Move {
     }
 
     // heads
-    head_paths := map[int]int{}
+    head_paths := map[int][]Point{}
+    head_dists := map[int]int{}
     head_moves := map[int]Move{}
 
     for pid, _ := range HEADS_F {
         move, path := best_dest(board, point, HEADS[pid])
-        head_paths[pid] = len(path)
+        head_paths[pid] = path
+        head_dists[pid] = len(path)
         head_moves[pid] = move
     }
 
-    HEADS_D = sortByValue(head_paths)
+    HEADS_D = sortByValue(head_dists)
     HEADS_D = append(HEADS_D, board[point.y][point.x])
+    var head0 int = HEADS_D[0]
 
-    head0 := HEADS_D[0]
-    dest := HEADS[head0]
+    if len(HEADS_F) == 1 {
+        if couloir(board, head_paths[head0]) {
+            return END
+        }
+    }
 
+    var dest Point = HEADS[head0]
     best_scores := map[Move]float64{}
     var alpha, beta float64
-    best_move := END
+    var best_move = END
 
-    for n := 0; n < 2; n++ {
+    for n := 0; n < 3; n++ {
         if out_of_time() {
             break
         }
@@ -605,7 +626,7 @@ func head_min(board [H][W]int, point Point) Move {
             }
 
             board[next.y][next.x] = 0
-            // debug("minimax", n, move, best_scores[move], time.Since(START))
+            debug("minimax", n, move, best_scores[move], time.Since(START))
         }
         if out_of_time() {
             break
@@ -908,6 +929,25 @@ func main() {
     // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
     // START = time.Now()
     // me := Point {2, 7}
+    // HEADS_F = map[int]bool {}
+    // HEADS = map[int]Point {}
+    // simulation(BOARD, me)
+// }
+// const W, H int = 10, 10
+// func test23() {
+    // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    // one := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    // two := [10]int{1001, 1001,    0,    0,    0,    0,    0,    0,    0,    0}
+    // thr := [10]int{   0, 1001,    0,    0,    0,    0,    0,    0,    0,    0}
+    // fou := [10]int{   0, 1001, 1001, 1001, 1001, 1001, 1001, 1001,    0,    0}
+    // fiv := [10]int{   0,    0,    0,    0,    0,    0,    0, 1001,    0,    0}
+    // six := [10]int{   0,    0,    0,    0,    0,    0,    0, 1001,    0,    0}
+    // sev := [10]int{   0,    0,    0,    0,    0,    0,    0, 1001,    0,    0}
+    // eig := [10]int{   0,    0,    0,    0,    0,    0,    0, 1001,    0,    0}
+    // nin := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
+    // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
+    // START = time.Now()
+    // me := Point {7, 8}
     // HEADS_F = map[int]bool {}
     // HEADS = map[int]Point {}
     // simulation(BOARD, me)
