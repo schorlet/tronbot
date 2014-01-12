@@ -146,19 +146,11 @@ func sortByValue(dict map[int]int) []int {
 const MAX_DURATION time.Duration = 86 * time.Millisecond
 
 var (
-    UP    = Move{0, -1}
-    RIGHT = Move{1, 0}
-    DOWN  = Move{0, 1}
-    LEFT  = Move{-1, 0}
-    END   = Move{0, 0}
+    UP, RIGHT, DOWN, LEFT, END = Move{0, -1}, Move{1, 0}, Move{0, 1},
+        Move{-1, 0}, Move{0, 0}
 
-    DIR = map[Move]string{
-        UP:    "UP",
-        RIGHT: "RIGHT",
-        DOWN:  "DOWN",
-        LEFT:  "LEFT",
-        END:   "END",
-    }
+    DIR = map[Move]string{UP: "UP", RIGHT: "RIGHT", DOWN: "DOWN",
+        LEFT: "LEFT", END: "END"}
 
     BOARD    [H][W]int
     HEADS    map[int]Point
@@ -212,7 +204,7 @@ func in_board(point Point) bool {
         point.x < W &&
         point.y < H
 }
-func is_clean(board [H][W]int, point Point) bool {
+func is_clean(board *[H][W]int, point Point) bool {
     return in_board(point) && board[point.y][point.x] == 0
 }
 func next_pos(point Point, move Move) Point {
@@ -229,7 +221,7 @@ func neighbors(point Point) []Point {
     }
     return neighbors
 }
-func neighbors_clean(board [H][W]int, point Point) []Point {
+func neighbors_clean(board *[H][W]int, point Point) []Point {
     neighbors := []Point{}
     moves := [4]Move{UP, RIGHT, DOWN, LEFT}
     for _, move := range moves {
@@ -240,7 +232,7 @@ func neighbors_clean(board [H][W]int, point Point) []Point {
     }
     return neighbors
 }
-func neighbors_clean_heads(board [H][W]int, point Point) []Point {
+func neighbors_clean_heads(board *[H][W]int, point Point) []Point {
     neighbors := []Point{}
     moves := [4]Move{UP, RIGHT, DOWN, LEFT}
     for _, move := range moves {
@@ -258,7 +250,7 @@ func neighbors_clean_heads(board [H][W]int, point Point) []Point {
     }
     return neighbors
 }
-func moves_clean(board [H][W]int, point Point) []Move {
+func moves_clean(board *[H][W]int, point Point) []Move {
     cleans := []Move{}
     moves := [4]Move{UP, RIGHT, DOWN, LEFT}
     for _, move := range moves {
@@ -342,7 +334,7 @@ func flood_find(board [H][W]int, src Point) int {
 
     for len(points) > 0 {
         next, points = points[0], points[1:]
-        neighbors := neighbors_clean_heads(board, next)
+        neighbors := neighbors_clean_heads(&board, next)
 
         for _, ngb := range neighbors {
             value := board[ngb.y][ngb.x]
@@ -375,7 +367,7 @@ func __best_dest(board [H][W]int, src, dest Point) []Point {
     for dest_path == nil && pqueue.Len() > 0 {
         ppoints := heap.Pop(pqueue).(PriorityPoints)
         next := ppoints.points[len(ppoints.points)-1]
-        neighbors := neighbors_clean_heads(board, next)
+        neighbors := neighbors_clean_heads(&board, next)
         // debug(ppoints.priority, next)
 
         for _, ngb := range neighbors {
@@ -443,7 +435,7 @@ func fill_board(board [H][W]int, heads map[int]Point) map[int]int {
             ppoint := heap.Pop(pqueue).(PriorityPoint)
             dist := ppoint.priority
             next := ppoint.point
-            neighbors := neighbors_clean(board, next)
+            neighbors := neighbors_clean(&board, next)
 
             for _, ngb := range neighbors {
                 value := board_fill[ngb.y][ngb.x]
@@ -464,8 +456,13 @@ func fill_board(board [H][W]int, heads map[int]Point) map[int]int {
     }
 
     counter := map[int]int{}
-    for _, pid := range sources {
+    mid := HEADS_D[len(HEADS_D)-1]
+
+    for point, pid := range sources {
         counter[pid] += 1
+        if pid == mid {
+            counter[pid] += len(neighbors_clean(&board, point))
+        }
     }
 
     // -----------
@@ -494,7 +491,7 @@ func max_play(board [H][W]int, next Point, dest Point,
     // debug("max_play", n, next, dest)
 
     best_score := float64(math.MinInt32)
-    neighbors := neighbors_clean(board, next)
+    neighbors := neighbors_clean(&board, next)
     if len(neighbors) == 0 {
         return best_score
     }
@@ -529,7 +526,7 @@ func min_play(board [H][W]int, next Point, dest Point,
     // debug("min_play", n, next, dest)
 
     best_score := float64(math.MaxInt32)
-    neighbors := neighbors_clean(board, dest)
+    neighbors := neighbors_clean(&board, dest)
     if len(neighbors) == 0 {
         return best_score
     }
@@ -583,7 +580,7 @@ func couloir(board [H][W]int, path []Point) bool {
     for count := 0; count < path_len-1; count++ {
         point := path[count]
         board[point.y][point.x] = count + 1
-        if len(neighbors_clean(board, point)) == 1 {
+        if len(neighbors_clean(&board, point)) == 1 {
             if float64(count) > 0.4 * float64(path_len) {
                 alt_move = true
             }
@@ -599,7 +596,7 @@ func head_min(board [H][W]int, src Point) Move {
         return END
     }
 
-    move_dirs := moves_clean(board, src)
+    move_dirs := moves_clean(&board, src)
     if len(move_dirs) <= 1 {
         return END
     }
@@ -666,48 +663,16 @@ func head_min(board [H][W]int, src Point) Move {
         sort.Sort(scores)
         alpha, beta = scores[0], scores[scores.Len()-1]
         // debug(n, "alpha:", alpha, "beta:", beta)
-        if alpha < 0.1 {
-            break
-        }
     }
 
     sort.Sort(ByScoreF{move_dirs, best_scores})
     best_move = move_dirs[0]
 
-    if len(move_dirs) == 2 {
-        dist2 := distance2(src, dest)
-        dirs := directions(src, dest)
-
-        if dist2 == 20 {
-            score0 := best_scores[best_move]
-            score1 := best_scores[move_dirs[1]]
-            if score0 > score1*0.9 && score1 > score0*0.9 {
-                for _, move := range move_dirs {
-                    if dirs[move] {
-                        best_move = move
-                        break
-                    }
-                }
-            }
-        } else if dist2 == 10 {
-            score0 := best_scores[best_move]
-            score1 := best_scores[move_dirs[1]]
-            if score0 > score1*0.9 && score1 > score0*0.9 {
-                for move, _ := range dirs {
-                    if best_move.IsInverse(move) {
-                        best_move = move_dirs[1]
-                        break
-                    }
-                }
-            }
-        }
-    }
-
     return best_move
 }
 
 
-func max_move(board [H][W]int, point Point, move Move) int {
+func max_move(board *[H][W]int, point Point, move Move) int {
     next := next_pos(point, move)
     var count int
     for is_clean(board, next) {
@@ -728,7 +693,7 @@ func flood_count(board [H][W]int, src Point) int {
     for pqueue.Len() > 0 {
         ppoint := heap.Pop(pqueue).(PriorityPoint)
         next := ppoint.point
-        neighbors := neighbors_clean(board_copy, next)
+        neighbors := neighbors_clean(&board_copy, next)
 
         for _, ngb := range neighbors {
             count += 1
@@ -739,7 +704,7 @@ func flood_count(board [H][W]int, src Point) int {
     return count
 }
 func dfs(board [H][W]int, src Point, visited map[Point]bool) int {
-    neighbors := neighbors_clean(board, src)
+    neighbors := neighbors_clean(&board, src)
     count := 0
     for _, ngb := range neighbors {
         score := 0
@@ -757,7 +722,7 @@ func dfs_start(board [H][W]int, src Point) int {
     return dfs(board, src, visited)
 }
 func default_move(board [H][W]int, src Point) Move {
-    move_dirs := moves_clean(board, src)
+    move_dirs := moves_clean(&board, src)
     move_len := len(move_dirs)
 
     if move_len == 0 {
@@ -771,7 +736,7 @@ func default_move(board [H][W]int, src Point) Move {
 
     for _, move := range move_dirs {
         next := next_pos(src, move)
-        neighbors[move] = len(neighbors_clean(board, next))
+        neighbors[move] = len(neighbors_clean(&board, next))
 
         board[next.y][next.x] = board[src.y][src.x]
         best_scores[move] = dfs_start(board, next)
