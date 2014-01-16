@@ -9,9 +9,66 @@ import (
     "time"
 )
 
+
+// const W, H int = 30, 20
+// const ID_START int = 10001
+const W, H int = 10, 10
+const ID_START int = 1001
+
+const MAX_DURATION time.Duration = 98 * time.Millisecond
+
+var (
+    UP, RIGHT, DOWN, LEFT, END = Move{0, -1}, Move{1, 0}, Move{0, 1},
+        Move{-1, 0}, Move{0, 0}
+
+    DIR = map[Move]string{UP: "UP", RIGHT: "RIGHT", DOWN: "DOWN",
+        LEFT: "LEFT", END: "END"}
+
+    BOARD    [H][W]int
+    HEADS    map[int]Point
+    HEADS_F  map[int]bool
+    HEADS_D  []int
+    LASTMOVE Move
+    START    time.Time
+)
+
 type Move struct {
     a, b int
 }
+
+type Point struct {
+    x, y int
+}
+
+type ByScoreF struct {
+    moves  []Move
+    scores map[Move]float64
+}
+
+type ByScoreI struct {
+    moves  []Move
+    scores map[Move]int
+}
+
+type PointQueue []PriorityPoint
+
+type PointsQueue []PriorityPoints
+
+type PriorityPoints struct {
+    priority int
+    points   []Point
+}
+
+type PriorityPoint struct {
+    priority int
+    point    Point
+}
+
+type SortedMapByValue struct {
+    dict map[int]int
+    arra []int
+}
+
 
 func (move Move) String() string {
     return DIR[move]
@@ -22,10 +79,11 @@ func (move Move) IsInverse(other Move) bool {
 func (move Move) Inverse() Move {
     return Move{move.a * -1, move.b * -1}
 }
-type ByScoreF struct {
-    moves  []Move
-    scores map[Move]float64
+func (point Point) String() string {
+    // return fmt.Sprintf("%+v", point)
+    return fmt.Sprintf("(%d, %d)", point.x, point.y)
 }
+
 
 func (bs ByScoreF) Len() int {
     return len(bs.moves)
@@ -38,10 +96,6 @@ func (bs ByScoreF) Less(i, j int) bool {
     return bs.scores[move0] > bs.scores[move1]
 }
 
-type ByScoreI struct {
-    moves  []Move
-    scores map[Move]int
-}
 
 func (bs ByScoreI) Len() int {
     return len(bs.moves)
@@ -54,21 +108,6 @@ func (bs ByScoreI) Less(i, j int) bool {
     return bs.scores[move0] > bs.scores[move1]
 }
 
-
-type Point struct {
-    x, y int
-}
-
-func (point Point) String() string {
-    // return fmt.Sprintf("%+v", point)
-    return fmt.Sprintf("(%d, %d)", point.x, point.y)
-}
-
-type PriorityPoints struct {
-    priority int
-    points   []Point
-}
-type PointsQueue []PriorityPoints
 
 func (pqueue PointsQueue) Len() int {
     return len(pqueue)
@@ -90,11 +129,6 @@ func (pqueue *PointsQueue) Pop() interface{} {
     return ppoints
 }
 
-type PriorityPoint struct {
-    priority int
-    point    Point
-}
-type PointQueue []PriorityPoint
 
 func (pqueue PointQueue) Len() int {
     return len(pqueue)
@@ -116,10 +150,6 @@ func (pqueue *PointQueue) Pop() interface{} {
     return ppoint
 }
 
-type SortedMapByValue struct {
-    dict map[int]int
-    arra []int
-}
 
 func (sm *SortedMapByValue) Len() int {
     return len(sm.dict)
@@ -143,22 +173,6 @@ func sortByValue(dict map[int]int) []int {
     return sm.arra
 }
 
-const MAX_DURATION time.Duration = 86 * time.Millisecond
-
-var (
-    UP, RIGHT, DOWN, LEFT, END = Move{0, -1}, Move{1, 0}, Move{0, 1},
-        Move{-1, 0}, Move{0, 0}
-
-    DIR = map[Move]string{UP: "UP", RIGHT: "RIGHT", DOWN: "DOWN",
-        LEFT: "LEFT", END: "END"}
-
-    BOARD    [H][W]int
-    HEADS    map[int]Point
-    HEADS_F  map[int]bool
-    HEADS_D  []int
-    LASTMOVE Move
-    START    time.Time
-)
 
 func clear_pid(pid int) {
     for y := 0; y < H; y++ {
@@ -262,6 +276,7 @@ func moves_clean(board *[H][W]int, point Point) []Move {
     return cleans
 }
 
+
 func distance1(src, dest Point) int {
     return int(math.Abs(float64(src.x-dest.x)) +
         math.Abs(float64(src.y-dest.y)))
@@ -299,7 +314,8 @@ func directions(src, dest Point) map[Move]bool {
     return dirs
 }
 
-func debug_board(board [H][W]int) {
+
+func debug_board(board *[H][W]int) {
     for y := range board {
         for x := range board[y] {
             fmt.Fprintf(os.Stderr, "%5d", board[y][x])
@@ -321,9 +337,7 @@ func clean_board(board *[H][W]int) {
 func debug(args ...interface{}) {
     fmt.Fprintln(os.Stderr, args)
 }
-func out_of_time() bool {
-    return time.Since(START) >= MAX_DURATION
-}
+
 
 func flood_find(board [H][W]int, src Point) int {
     board[src.y][src.x] = -2
@@ -355,10 +369,10 @@ func flood_find(board [H][W]int, src Point) int {
         }
     }
     // debug("flood_find", HEADS_F, time.Since(START))
-    // debug_board(board)
+    // debug_board(&board)
     return count
 }
-func __best_dest(board [H][W]int, src, dest Point) []Point {
+func __best_dest(board *[H][W]int, src, dest Point) []Point {
     var dest_path []Point
     pqueue := &PointsQueue{}
     heap.Init(pqueue)
@@ -367,7 +381,7 @@ func __best_dest(board [H][W]int, src, dest Point) []Point {
     for dest_path == nil && pqueue.Len() > 0 {
         ppoints := heap.Pop(pqueue).(PriorityPoints)
         next := ppoints.points[len(ppoints.points)-1]
-        neighbors := neighbors_clean_heads(&board, next)
+        neighbors := neighbors_clean_heads(board, next)
         // debug(ppoints.priority, next)
 
         for _, ngb := range neighbors {
@@ -401,16 +415,16 @@ func __best_dest(board [H][W]int, src, dest Point) []Point {
         }
     }
 
-    // clean_board(&board)
-    // for i, pos := range dest_path {
-        // if i == 0 { continue }
-        // board[pos.y][pos.x] = i
-    // }
-    // debug_board(board)
+    clean_board(board)
+    for i, pos := range dest_path {
+        if i == 0 { continue }
+        board[pos.y][pos.x] = i
+    }
+    debug_board(board)
     return dest_path
 }
 func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
-    dest_path := __best_dest(board, src, dest)
+    dest_path := __best_dest(&board, src, dest)
     if len(dest_path) > 1 {
         next := dest_path[1]
         move := Move{next.x - src.x, next.y - src.y}
@@ -421,9 +435,9 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 }
 
 
-func fill_board(board [H][W]int, heads map[int]Point) map[int]int {
+func fill_board(board *[H][W]int, heads map[int]Point) map[int]int {
     sources := map[Point]int{}
-    board_fill := board
+    board_fill := *board
 
     for _, pid := range HEADS_D {
         pos := heads[pid]
@@ -435,7 +449,7 @@ func fill_board(board [H][W]int, heads map[int]Point) map[int]int {
             ppoint := heap.Pop(pqueue).(PriorityPoint)
             dist := ppoint.priority
             next := ppoint.point
-            neighbors := neighbors_clean(&board, next)
+            neighbors := neighbors_clean(board, next)
 
             for _, ngb := range neighbors {
                 value := board_fill[ngb.y][ngb.x]
@@ -461,7 +475,7 @@ func fill_board(board [H][W]int, heads map[int]Point) map[int]int {
     for point, pid := range sources {
         counter[pid] += 1
         if pid == mid {
-            counter[pid] += len(neighbors_clean(&board, point))
+            counter[pid] += len(neighbors_clean(board, point))
         }
     }
 
@@ -479,19 +493,16 @@ func fill_board(board [H][W]int, heads map[int]Point) map[int]int {
             // board_fill[point.y][point.x] = ^board_fill[point.y][point.x]
         // }
     // }
-    // debug_board(board_fill)
+    // debug_board(&board_fill)
 
     return counter
 }
-func max_play(board [H][W]int, next Point, dest Point,
+func max_play(board *[H][W]int, next Point, dest Point,
     alpha float64, beta float64, n int) float64 {
-    if out_of_time() {
-        return 0.0
-    }
     // debug("max_play", n, next, dest)
 
     best_score := float64(math.MinInt32)
-    neighbors := neighbors_clean(&board, next)
+    neighbors := neighbors_clean(board, next)
     if len(neighbors) == 0 {
         return best_score
     }
@@ -518,15 +529,12 @@ func max_play(board [H][W]int, next Point, dest Point,
 
     return best_score
 }
-func min_play(board [H][W]int, next Point, dest Point,
+func min_play(board *[H][W]int, next Point, dest Point,
     alpha float64, beta float64, n int) float64 {
-    if out_of_time() {
-        return 0.0
-    }
     // debug("min_play", n, next, dest)
 
     best_score := float64(math.MaxInt32)
-    neighbors := neighbors_clean(&board, dest)
+    neighbors := neighbors_clean(board, dest)
     if len(neighbors) == 0 {
         return best_score
     }
@@ -553,7 +561,7 @@ func min_play(board [H][W]int, next Point, dest Point,
 
     return best_score
 }
-func evaluate(board [H][W]int, next, dest Point) float64 {
+func evaluate(board *[H][W]int, next, dest Point) float64 {
     heads := map[int]Point{}
     for pid, _ := range HEADS_F {
         heads[pid] = HEADS[pid]
@@ -574,6 +582,7 @@ func evaluate(board [H][W]int, next, dest Point) float64 {
     return score
 }
 
+
 func couloir(board [H][W]int, path []Point) bool {
     var alt_move bool
     path_len := len(path)
@@ -589,16 +598,17 @@ func couloir(board [H][W]int, path []Point) bool {
     }
     return alt_move
 }
-
-func head_min(board [H][W]int, src Point) Move {
-    flood_find(board, src)
+func head_min(board *[H][W]int, src Point, out chan Move) {
+    flood_find(*board, src)
     if len(HEADS_F) == 0 {
-        return END
+        out <-END
+        return
     }
 
-    move_dirs := moves_clean(&board, src)
+    move_dirs := moves_clean(board, src)
     if len(move_dirs) <= 1 {
-        return END
+        out <-END
+        return
     }
 
     // heads
@@ -607,7 +617,7 @@ func head_min(board [H][W]int, src Point) Move {
     head_moves := map[int]Move{}
 
     for pid, _ := range HEADS_F {
-        move, path := best_dest(board, src, HEADS[pid])
+        move, path := best_dest(*board, src, HEADS[pid])
         head_paths[pid] = path
         head_dists[pid] = len(path)
         head_moves[pid] = move
@@ -617,22 +627,16 @@ func head_min(board [H][W]int, src Point) Move {
     HEADS_D = append(HEADS_D, board[src.y][src.x])
     var head0 int = HEADS_D[0]
 
-    // if len(HEADS_F) == 1 {
-        // if couloir(board, head_paths[head0]) {
-            // return END
-        // }
+    // if couloir(*board, head_paths[head0]) {
+        // out <-END
+        // return
     // }
 
     var dest Point = HEADS[head0]
     best_scores := map[Move]float64{}
     var alpha, beta float64
-    var best_move = END
 
     for n := 0; n < 2; n++ {
-        if out_of_time() {
-            break
-        }
-
         for _, move := range move_dirs {
             next := next_pos(src, move)
             board[next.y][next.x] = board[src.y][src.x]
@@ -641,20 +645,15 @@ func head_min(board [H][W]int, src Point) Move {
                 best_scores[move] = evaluate(board, next, dest)
             } else {
                 score := min_play(board, next, dest, alpha, beta, n)
-                if out_of_time() {
-                    break
-                }
                 best_scores[move] = score
             }
 
             board[next.y][next.x] = 0
             // debug("minimax", n, move, best_scores[move], time.Since(START))
         }
-        if out_of_time() {
-            break
-        }
 
         sort.Sort(ByScoreF{move_dirs, best_scores})
+        out <-move_dirs[0]
 
         scores := sort.Float64Slice{}
         for _, score := range best_scores {
@@ -666,9 +665,7 @@ func head_min(board [H][W]int, src Point) Move {
     }
 
     sort.Sort(ByScoreF{move_dirs, best_scores})
-    best_move = move_dirs[0]
-
-    return best_move
+    out <-move_dirs[0]
 }
 
 
@@ -686,25 +683,24 @@ func flood_count(board [H][W]int, src Point) int {
     heap.Init(pqueue)
     heap.Push(pqueue, PriorityPoint{0, src})
 
-    board_copy := board
-    board_copy[src.y][src.x] = 1
+    board[src.y][src.x] = 1
     var count int
 
     for pqueue.Len() > 0 {
         ppoint := heap.Pop(pqueue).(PriorityPoint)
         next := ppoint.point
-        neighbors := neighbors_clean(&board_copy, next)
+        neighbors := neighbors_clean(&board, next)
 
         for _, ngb := range neighbors {
             count += 1
-            board_copy[ngb.y][ngb.x] = count
+            board[ngb.y][ngb.x] = count
             heap.Push(pqueue, PriorityPoint{count, ngb})
         }
     }
     return count
 }
-func dfs(board [H][W]int, src Point, visited map[Point]bool) int {
-    neighbors := neighbors_clean(&board, src)
+func dfs(board *[H][W]int, src Point, visited map[Point]bool) int {
+    neighbors := neighbors_clean(board, src)
     count := 0
     for _, ngb := range neighbors {
         score := 0
@@ -717,12 +713,12 @@ func dfs(board [H][W]int, src Point, visited map[Point]bool) int {
     }
     return count
 }
-func dfs_start(board [H][W]int, src Point) int {
+func dfs_start(board *[H][W]int, src Point) int {
     visited := map[Point]bool{}
     return dfs(board, src, visited)
 }
-func default_move(board [H][W]int, src Point) Move {
-    move_dirs := moves_clean(&board, src)
+func default_move(board *[H][W]int, src Point) Move {
+    move_dirs := moves_clean(board, src)
     move_len := len(move_dirs)
 
     if move_len == 0 {
@@ -736,7 +732,7 @@ func default_move(board [H][W]int, src Point) Move {
 
     for _, move := range move_dirs {
         next := next_pos(src, move)
-        neighbors[move] = len(neighbors_clean(&board, next))
+        neighbors[move] = len(neighbors_clean(board, next))
 
         board[next.y][next.x] = board[src.y][src.x]
         best_scores[move] = dfs_start(board, next)
@@ -770,17 +766,33 @@ func default_move(board [H][W]int, src Point) Move {
     return best_move
 }
 
+
 func best_move_fast(board [H][W]int, src Point) Move {
-    move := head_min(board, src)
-    if move == END {
-        move = default_move(board, src)
+    max_delay := time.After(MAX_DURATION)
+    channel := make(chan Move)
+    go head_min(&board, src, channel)
+
+    var best_move Move
+    var in_time bool = true
+
+    for in_time {
+        select {
+            case best_move = <-channel:
+                if best_move == END {
+                    close(channel)
+                    in_time = false
+                    best_move = default_move(&board, src)
+                }
+            case <-max_delay:
+                close(channel)
+                in_time = false
+        }
     }
-    debug(move, time.Since(START))
-    return move
+
+    debug(best_move, time.Since(START))
+    return best_move
 }
 
-const W, H int = 30, 20
-const ID_START int = 10001
 func main() {
     for {
         src := read_stdin()
@@ -790,208 +802,4 @@ func main() {
     }
 }
 
-// const TEST_DURATION time.Duration = 95 * time.Millisecond
-// func simulation(board [H][W]int, src Point) {
-    // START = time.Now()
-    // board_copy := board
-    // LASTMOVE = default_move(board_copy, src)
-    // if time.Since(START) > TEST_DURATION {
-        // panic("timeout")
-    // }
-    // var count int
-    // for LASTMOVE != END {
-        // src = next_pos(src, LASTMOVE)
-        // count += 1
-//
-        // board[src.y][src.x] = count
-        // debug_board(board)
-        // START = time.Now()
-//
-        // board_copy[src.y][src.x] = 1001
-        // LASTMOVE = default_move(board_copy, src)
-        // if time.Since(START) > TEST_DURATION {
-            // panic("timeout")
-        // }
-    // }
-// }
-// const ID_START int = 1001
-// func main() {
-    // test11()
-// }
-// const W, H int = 10, 10
-// func test10() {
-    // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // one := [10]int{1003, 1003,    0,    0,    0,    0,    0,    0,    0,    0}
-    // two := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // thr := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // fou := [10]int{1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002,    0,    0}
-    // fiv := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // six := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // sev := [10]int{   0, 1001, 1001,    0,    0,    0,    0,    0,    0,    0}
-    // eig := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // nin := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
-    // START = time.Now()
-    // me := Point {2, 7}
-    // HEADS_F = map[int]bool {}
-    // HEADS = map[int]Point {1002: Point {7, 4}, 1003: Point {1, 1}}
-    // LASTMOVE = best_move_fast(BOARD, me)
-// }
-// const W, H int = 10, 10
-// func test11() {
-    // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // one := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // two := [10]int{   0,    0,    0,    0,    0, 1002, 1002, 1002,    0,    0}
-    // thr := [10]int{   0, 1002, 1002, 1002, 1002, 1002, 1002, 1002,    0,    0}
-    // fou := [10]int{   0, 1001, 1001, 1001, 1001, 1001, 1001, 1001, 1001,    0}
-    // fiv := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // six := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // sev := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // eig := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // nin := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // me := Point {8, 4}
-    // HEADS = map[int]Point {1002: Point {5, 2}}
-//
-    // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // one := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // two := [10]int{   0,    0,    0,    0, 1002, 1002, 1002,    0,    0,    0}
-    // thr := [10]int{   0, 1002, 1002, 1002, 1002, 1002, 1002,    0,    0,    0}
-    // fou := [10]int{   0, 1001, 1001, 1001, 1001, 1001, 1001, 1001,    0,    0}
-    // fiv := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // six := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // sev := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // eig := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // nin := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // me := Point {7, 4}
-    // HEADS = map[int]Point {1002: Point {4, 2}}
-//
-    // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
-    // START = time.Now()
-    // HEADS_F = map[int]bool {}
-    // LASTMOVE = best_move_fast(BOARD, me)
-// }
-// const W, H int = 10, 10
-// func test12() {
-    // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // one := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // two := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // thr := [10]int{   0,    0,    0,    0,    0, 1002,    0,    0,    0,    0}
-    // fou := [10]int{   0,    0, 1001, 1001,    0, 1002,    0,    0,    0,    0}
-    // fiv := [10]int{   0,    0, 1001, 1001,    0, 1002,    0,    0,    0,    0}
-    // six := [10]int{   0,    0, 1001, 1001,    0, 1002,    0,    0,    0,    0}
-    // sev := [10]int{   0,    0, 1001, 1001,    0, 1002,    0,    0,    0,    0}
-    // eig := [10]int{   0,    0, 1001,    0,    0, 1002,    0,    0,    0,    0}
-    // nin := [10]int{   0,    0, 1001,    0,    0, 1002,    0,    0,    0,    0}
-    // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
-    // START = time.Now()
-    // me := Point {2, 9}
-    // HEADS_F = map[int]bool {}
-    // HEADS = map[int]Point {1002: Point {5, 9}}
-    // LASTMOVE = best_move_fast(BOARD, me)
-// }
-// const W, H int = 10, 10
-// func test13() {
-    // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // one := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // two := [10]int{   0,    0,    0,    0,    0, 1003,    0,    0,    0,    0}
-    // thr := [10]int{   0,    0,    0,    0,    0, 1003,    0,    0,    0,    0}
-    // fou := [10]int{   0,    0,    0,    0,    0, 1003,    0,    0,    0,    0}
-    // fiv := [10]int{   0,    0,    0,    0,    0, 1003,    0,    0,    0,    0}
-    // six := [10]int{   0,    0,    0,    0,    0, 1003,    0,    0,    0,    0}
-    // sev := [10]int{   0,    0,    0,    0,    0, 1003,    0,    0,    0,    0}
-    // eig := [10]int{   0,    0,    0,    0,    0, 1003,    0,    0,    0,    0}
-    // nin := [10]int{1001,    0,    0,    0,    0, 1003,    0,    0,    0, 1002}
-    // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
-    // START = time.Now()
-    // me := Point {0, 9}
-    // HEADS_F = map[int]bool {}
-    // HEADS = map[int]Point {1002: Point {9, 9}}
-    // best_dest(BOARD, me, HEADS[1002])
-// }
-// const W, H int = 4, 7
-// func test21() {
-    // zer := [4]int{   0, 1003,    0,    0}
-    // one := [4]int{   0, 1003,    0,    0}
-    // two := [4]int{   0,    0,    0,    0}
-    // thr := [4]int{1002, 1002, 1002,    0}
-    // fou := [4]int{   0,    0,    0,    0}
-    // fiv := [4]int{   0,    0,    0,    0}
-    // six := [4]int{   0, 1001, 1001,    0}
-    // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six}
-    // START = time.Now()
-    // me := Point {2, 6}
-    // HEADS_F = map[int]bool {}
-    // HEADS = map[int]Point {}
-    // simulation(BOARD, me)
-// }
-// const W, H int = 10, 10
-// func test22() {
-    // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // one := [10]int{1003, 1003,    0,    0,    0,    0,    0,    0,    0,    0}
-    // two := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // thr := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // fou := [10]int{1002, 1002, 1002, 1002, 1002, 1002, 1002, 1002,    0,    0}
-    // fiv := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // six := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // sev := [10]int{   0, 1001, 1001,    0,    0,    0,    0,    0,    0,    0}
-    // eig := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // nin := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
-    // START = time.Now()
-    // me := Point {2, 7}
-    // HEADS_F = map[int]bool {}
-    // HEADS = map[int]Point {}
-    // simulation(BOARD, me)
-// }
-// const W, H int = 10, 10
-// func test23() {
-    // zer := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // one := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // two := [10]int{1001, 1001,    0,    0,    0,    0,    0,    0,    0,    0}
-    // thr := [10]int{   0, 1001,    0,    0,    0,    0,    0,    0,    0,    0}
-    // fou := [10]int{   0, 1001, 1001, 1001, 1001, 1001, 1001, 1001,    0,    0}
-    // fiv := [10]int{   0,    0,    0,    0,    0,    0,    0, 1001,    0,    0}
-    // six := [10]int{   0,    0,    0,    0,    0,    0,    0, 1001,    0,    0}
-    // sev := [10]int{   0,    0,    0,    0,    0,    0,    0, 1001,    0,    0}
-    // eig := [10]int{   0,    0,    0,    0,    0,    0,    0, 1001,    0,    0}
-    // nin := [10]int{   0,    0,    0,    0,    0,    0,    0,    0,    0,    0}
-    // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
-    // START = time.Now()
-    // me := Point {7, 8}
-    // HEADS_F = map[int]bool {}
-    // HEADS = map[int]Point {}
-    // simulation(BOARD, me)
-// }
-// const W, H int = 4, 5
-// func test24() {
-    // zer := [4]int{   0,    0,    0,    0}
-    // one := [4]int{   0,    0,    0,    0}
-    // two := [4]int{1003, 1003,    0, 1001}
-    // thr := [4]int{   0,    0,    0,    0}
-    // fou := [4]int{   0,    0,    0,    0}
-    // BOARD := [H][W]int{zer, one, two, thr, fou}
-    // START = time.Now()
-    // me := Point {3, 2}
-    // HEADS_F = map[int]bool {}
-    // HEADS = map[int]Point {}
-    // simulation(BOARD, me)
-// }
-// const W, H int = 10, 10
-// func test25() {
-    // zer := [10]int{   0,    0, 1003,    0,    0,    0,    0,    0,    0,    0}
-    // one := [10]int{   0,    0, 1003,    0,    0,    0,    0,    0,    0,    0}
-    // two := [10]int{   0,    0, 1003,    0,    0,    0,    0,    0,    0,    0}
-    // thr := [10]int{   0,    0, 1003,    0,    0,    0,    0,    0,    0,    0}
-    // fou := [10]int{   0,    0, 1003, 1003, 1003, 1003, 1003, 1003,    0,    0}
-    // fiv := [10]int{   0,    0,    0,    0,    0,    0,    0, 1003,    0,    0}
-    // six := [10]int{   0,    0,    0,    0,    0,    0,    0, 1003,    0,    0}
-    // sev := [10]int{   0,    0,    0,    0,    0,    0,    0, 1003,    0,    0}
-    // eig := [10]int{   0,    0,    0,    0,    0,    0,    0, 1003, 1003, 1003}
-    // nin := [10]int{   0,    0,    0,    0,    0, 1001,    0,    0,    0,    0}
-    // BOARD := [H][W]int{zer, one, two, thr, fou, fiv, six, sev, eig, nin}
-    // START = time.Now()
-    // me := Point {5, 9}
-    // HEADS_F = map[int]bool {}
-    // HEADS = map[int]Point {}
-    // simulation(BOARD, me)
-// }
+
