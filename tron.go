@@ -775,25 +775,21 @@ func default_move(board *[H][W]int, src Point) Move {
 
 
 func best_move_fast(board [H][W]int, src Point) Move {
-    max_delay := time.After(MAX_DURATION)
-
+    var max_delay = time.After(MAX_DURATION)
     var best_move Move
-    var in_time bool = true
 
-    channel := make(chan Move, 1)
+    var channel = make(chan Move, 1)
     go head_min(&board, src, channel)
 
-    for in_time {
+    for channel != nil {
         select {
             case best_move = <-channel:
                 if best_move == END {
-                    close(channel)
-                    in_time = false
+                    channel = nil
                     best_move = default_move(&board, src)
                 }
             case <-max_delay:
                 channel = nil
-                in_time = false
         }
     }
 
