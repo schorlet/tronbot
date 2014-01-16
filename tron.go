@@ -10,13 +10,13 @@ import (
     "time"
 )
 
-
-// const W, H int = 30, 20
-// const ID_START int = 10001
-const W, H int = 10, 10
-const ID_START int = 1001
-
-const MAX_DURATION time.Duration = 95 * time.Millisecond
+const (
+    // ID_START int = 10001
+    // W, H int = 30, 20
+    W, H int = 10, 10
+    ID_START int = 1001
+    MAX_DURATION time.Duration = 95 * time.Millisecond
+)
 
 var (
     UP, RIGHT, DOWN, LEFT, END = Move{0, -1}, Move{1, 0}, Move{0, 1},
@@ -33,42 +33,44 @@ var (
     START    time.Time
 )
 
-type Move struct {
-    a, b int
-}
+type (
+    Move struct {
+        a, b int
+    }
 
-type Point struct {
-    x, y int
-}
+    Point struct {
+        x, y int
+    }
 
-type ByScoreF struct {
-    moves  []Move
-    scores map[Move]float64
-}
+    ByScoreF struct {
+        moves  []Move
+        scores map[Move]float64
+    }
 
-type ByScoreI struct {
-    moves  []Move
-    scores map[Move]int
-}
+    ByScoreI struct {
+        moves  []Move
+        scores map[Move]int
+    }
 
-type PointQueue []PriorityPoint
+    PointQueue []PriorityPoint
 
-type PointsQueue []PriorityPoints
+    PointsQueue []PriorityPoints
 
-type PriorityPoints struct {
-    priority int
-    points   []Point
-}
+    PriorityPoints struct {
+        priority int
+        points   []Point
+    }
 
-type PriorityPoint struct {
-    priority int
-    point    Point
-}
+    PriorityPoint struct {
+        priority int
+        point    Point
+    }
 
-type SortedMapByValue struct {
-    dict map[int]int
-    arra []int
-}
+    SortedMapByValue struct {
+        dict map[int]int
+        arra []int
+    }
+)
 
 
 func (move Move) String() string {
