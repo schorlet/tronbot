@@ -492,7 +492,7 @@ func fill_board(board *[H][W]int, heads map[int]Point) map[int]int {
     // sort.Sort(pids)
     // for _, pid := range pids {
         // if pid == mid {
-            // debug("fill_board", pid, counter[pid] - count_mid)
+            // debug("fill_board", pid, counter[pid] - count_mid, count_mid)
         // } else {
             // debug("fill_board", pid, counter[pid])
         // }
@@ -608,6 +608,12 @@ func couloir(board [H][W]int, path []Point) bool {
     return alt_move
 }
 func head_min(board *[H][W]int, src Point, out chan Move) {
+    defer func() {
+        // A closed channel never blocks
+        // A nil channel always blocks
+        out = nil
+    }()
+
     flood_find(*board, src)
     if len(HEADS_F) == 0 {
         out <-END
@@ -671,10 +677,15 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
         sort.Sort(scores)
         alpha, beta = scores[0], scores[scores.Len()-1]
         // debug(n, "alpha:", alpha, "beta:", beta)
-    }
 
-    sort.Sort(ByScoreF{move_dirs, best_scores})
-    out <-move_dirs[0]
+        if alpha == 0 {
+            if len(move_dirs) == 2 {
+                break
+            } else {
+                move_dirs = move_dirs[0:len(move_dirs)-1]
+            }
+        }
+    }
 }
 
 
@@ -795,7 +806,6 @@ func best_move_fast(board [H][W]int, src Point) Move {
         }
     }
 
-    // debug(best_move, time.Since(START))
     return best_move
 }
 
