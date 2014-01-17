@@ -7,15 +7,16 @@ import (
     "os"
     "runtime"
     "sort"
+    "sync"
     "time"
 )
 
 const (
-    // ID_START int = 10001
-    // W, H int = 30, 20
-    W, H int = 10, 10
-    ID_START int = 1001
-    MAX_DURATION time.Duration = 95 * time.Millisecond
+    ID_START int = 10001
+    W, H int = 30, 20
+    // W, H int = 10, 10
+    // ID_START int = 1001
+    MAX_DURATION time.Duration = 90 * time.Millisecond
 )
 
 var (
@@ -438,13 +439,12 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 }
 
 
-func fill_board(board *[H][W]int, heads map[int]Point) map[int]int {
+func fill_board(board *[H][W]int, heads map[int]Point) (map[int]int, int) {
     sources := map[Point]int{}
     board_fill := *board
 
     for _, pid := range HEADS_D {
         pos := heads[pid]
-        // debug("fill_board", pid, pos)
         pqueue := &PointQueue{}
         heap.Init(pqueue)
         heap.Push(pqueue, PriorityPoint{0, pos})
@@ -482,7 +482,7 @@ func fill_board(board *[H][W]int, heads map[int]Point) map[int]int {
             count_mid += len(neighbors_clean(board, point))
         }
     }
-    counter[mid] += count_mid
+    // counter[mid] += count_mid
 
     // -----------
     // pids := sort.IntSlice {}
@@ -492,9 +492,9 @@ func fill_board(board *[H][W]int, heads map[int]Point) map[int]int {
     // sort.Sort(pids)
     // for _, pid := range pids {
         // if pid == mid {
-            // debug("fill_board", pid, counter[pid] - count_mid, count_mid)
+            // debug("fill_board", heads[pid], pid, counter[pid], count_mid)
         // } else {
-            // debug("fill_board", pid, counter[pid])
+            // debug("fill_board", heads[pid], pid, counter[pid])
         // }
     // }
     // for point, pid := range sources {
@@ -504,7 +504,7 @@ func fill_board(board *[H][W]int, heads map[int]Point) map[int]int {
     // }
     // debug_board(&board_fill)
 
-    return counter
+    return counter, count_mid
 }
 func max_play(board *[H][W]int, next Point, dest Point,
     alpha float64, beta float64, n int) float64 {
@@ -582,12 +582,13 @@ func evaluate(board *[H][W]int, next, dest Point) float64 {
     pid := board[dest.y][dest.x]
     heads[pid] = dest
 
-    counter := fill_board(board, heads)
+    counter, borders := fill_board(board, heads)
     if counter[pid] == 0 {
         counter[pid] = 1
     }
 
-    score := math.Pow(float64(counter[mid]), 2) / float64(counter[pid])
+    // score := math.Pow(float64(counter[mid]), 2) / float64(counter[pid])
+    score := math.Pow(float64(borders), 2) * float64(counter[mid]) / float64(counter[pid])
     return score
 }
 
@@ -651,22 +652,32 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
     best_scores := map[Move]float64{}
     var alpha, beta float64
 
-    for n := 0; n < 6; n++ {
+    for n := 0; n < 2; n++ {
+        var wg sync.WaitGroup
+
         for _, move := range move_dirs {
-            next := next_pos(src, move)
-            board[next.y][next.x] = board[src.y][src.x]
+            wg.Add(1)
+            board_copy := *board
 
-            if n == 0 {
-                best_scores[move] = evaluate(board, next, dest)
-            } else {
-                score := min_play(board, next, dest, alpha, beta, n)
-                best_scores[move] = score
-            }
+            go func(board_calcul *[H][W]int, move Move) {
+                defer wg.Done()
 
-            board[next.y][next.x] = 0
-            debug("minimax", n, move, best_scores[move], time.Since(START))
+                next := next_pos(src, move)
+                board_calcul[next.y][next.x] = board_calcul[src.y][src.x]
+
+                if n == 0 {
+                    best_scores[move] = evaluate(board_calcul, next, dest)
+                } else {
+                    score := min_play(board_calcul, next, dest, alpha, beta, n)
+                    best_scores[move] = score
+                }
+
+                board_calcul[next.y][next.x] = 0
+                // debug("minimax", n, move, best_scores[move], time.Since(START))
+            }(&board_copy, move)
         }
 
+        wg.Wait()
         sort.Sort(ByScoreF{move_dirs, best_scores})
         out <-move_dirs[0]
 
@@ -805,7 +816,7 @@ func best_move_fast(board [H][W]int, src Point) Move {
                 channel = nil
         }
     }
-
+    // debug(best_move, time.Since(START))
     return best_move
 }
 
