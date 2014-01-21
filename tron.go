@@ -482,7 +482,6 @@ func fill_board(board *[H][W]int, heads map[int]Point) (map[int]int, int) {
             count_mid += len(neighbors_clean(board, point))
         }
     }
-    // counter[mid] += count_mid
 
     // -----------
     // pids := sort.IntSlice {}
@@ -587,8 +586,17 @@ func evaluate(board *[H][W]int, next, dest Point) float64 {
         counter[pid] = 1
     }
 
+    moves := moves_clean(board, next)
+    if len(moves) == 2 {
+        if moves[0].IsInverse(moves[1]) {
+            counter[mid] = counter[mid] * 2
+        }
+    }
+
     // score := math.Pow(float64(counter[mid]), 2) / float64(counter[pid])
     score := math.Pow(float64(borders), 2) * float64(counter[mid]) / float64(counter[pid])
+    // debug(strings.Repeat("  ", 7), next, dest, fmt.Sprintf("%d**2 * %d / %d = %f", borders,
+            // counter[mid], counter[pid], score))
     return score
 }
 
@@ -628,15 +636,11 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
     }
 
     // heads
-    head_paths := map[int][]Point{}
     head_dists := map[int]int{}
-    head_moves := map[int]Move{}
 
     for pid, _ := range HEADS_F {
-        move, path := best_dest(*board, src, HEADS[pid])
-        head_paths[pid] = path
+        _, path := best_dest(*board, src, HEADS[pid])
         head_dists[pid] = len(path)
-        head_moves[pid] = move
     }
 
     HEADS_D = sortByValue(head_dists)
