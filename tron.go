@@ -339,7 +339,8 @@ func clean_board(board *[H][W]int) {
     }
 }
 func debug(args ...interface{}) {
-    fmt.Fprintln(os.Stderr, args)
+    // fmt.Fprintln(os.Stderr, args)
+    fmt.Fprintln(os.Stderr, fmt.Sprint(args))
 }
 
 
@@ -767,6 +768,30 @@ func dfs_start(board *[H][W]int, src Point) int {
     }
     return count
 }
+func dm_max(board *[H][W]int, src Point, n int) int {
+    neighbors := neighbors_clean(board, src)
+    if len(neighbors) == 0 {
+        return 0
+    }
+
+    best_score := math.MinInt32
+    var score int
+    for _, ngb := range neighbors {
+        board[ngb.y][ngb.x] = board[src.y][src.x]
+        if n == 0 {
+            score = 1 + dfs_start(board, ngb)
+        } else {
+            score = 1 + dm_max(board, ngb, n-1)
+        }
+        board[ngb.y][ngb.x] = 0
+
+        if score > best_score {
+            best_score = score
+        }
+    }
+
+    return best_score
+}
 func default_move(board *[H][W]int, src Point) Move {
     move_dirs := moves_clean(board, src)
     move_len := len(move_dirs)
@@ -781,10 +806,8 @@ func default_move(board *[H][W]int, src Point) Move {
     var score int
     for _, move := range move_dirs {
         next := next_pos(src, move)
-        score = 5 - len(neighbors_clean(board, next))
-
         board[next.y][next.x] = board[src.y][src.x]
-        score += dfs_start(board, next)
+        score = dm_max(board, next, 3)
         board[next.y][next.x] = 0
 
         best_scores[move] = score
