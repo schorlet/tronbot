@@ -250,6 +250,17 @@ func neighbors_clean(board *[H][W]int, point Point) []Point {
     }
     return neighbors
 }
+func neighbors_count(board *[H][W]int, point Point) int {
+    var count int
+    moves := [4]Move{UP, RIGHT, DOWN, LEFT}
+    for _, move := range moves {
+        next := next_pos(point, move)
+        if is_clean(board, next) {
+            count += 1
+        }
+    }
+    return count
+}
 func neighbors_clean_heads(board *[H][W]int, point Point) []Point {
     neighbors := []Point{}
     moves := [4]Move{UP, RIGHT, DOWN, LEFT}
@@ -440,7 +451,7 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 }
 
 
-func fill_board(board *[H][W]int, heads map[int]Point) (map[int]int, int) {
+func fill_board(board *[H][W]int, heads map[int]Point) map[int]int {
     sources := map[Point]int{}
     board_fill := *board
 
@@ -475,22 +486,22 @@ func fill_board(board *[H][W]int, heads map[int]Point) (map[int]int, int) {
     }
 
     var counter = map[int]int{}
+
+    var hid = HEADS_D[0]
     var mid = HEADS_D[len(HEADS_D)-1]
-    var count_mid = 0
+    var dist int
 
     for point, pid := range sources {
-        counter[pid] += 1
+        nc := neighbors_count(board, point)
         if pid == mid {
-            l := len(neighbors_clean(board, point))
-            switch l {
-                case 2:
-                    count_mid += 1
-                case 3:
-                    count_mid += 9
-                case 4:
-                    count_mid += 20
-            }
+            dist = distance1(heads[hid], point)
+        } else if pid == hid {
+            dist = distance1(heads[mid], point)
         }
+        if nc > 2 {
+            nc *= nc
+        }
+        counter[pid] += nc * dist
     }
 
     // -----------
@@ -513,7 +524,7 @@ func fill_board(board *[H][W]int, heads map[int]Point) (map[int]int, int) {
     // }
     // debug_board(&board_fill)
 
-    return counter, count_mid
+    return counter
 }
 func max_play(board *[H][W]int, next Point, dest Point,
     alpha float64, beta float64, n int) float64 {
@@ -591,15 +602,12 @@ func evaluate(board *[H][W]int, next, dest Point) float64 {
     pid := board[dest.y][dest.x]
     heads[pid] = dest
 
-    counter, borders := fill_board(board, heads)
+    counter := fill_board(board, heads)
     if counter[pid] == 0 {
         counter[pid] = 1
     }
 
-    // score := math.Pow(float64(counter[mid]), 2) / float64(counter[pid])
-    score := float64(borders) * float64(counter[mid]) / float64(counter[pid])
-    // debug(strings.Repeat("  ", 7), next, dest, fmt.Sprintf("%d * %d / %d = %f", borders,
-            // counter[mid], counter[pid], score))
+    score := float64(counter[mid]) / float64(counter[pid])
     return score
 }
 
