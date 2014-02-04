@@ -7,16 +7,17 @@ import (
     "os"
     "runtime"
     "sort"
-    // "strings"
+    "strings"
     "sync"
     "time"
 )
+var _ = strings.Repeat
 
 const (
-    ID_START int = 10001
-    W, H int = 30, 20
-    // W, H int = 10, 10
-    // ID_START int = 1001
+    // ID_START int = 10001
+    // W, H int = 30, 20
+    W, H int = 10, 10
+    ID_START int = 1001
     MAX_DURATION time.Duration = 90 * time.Millisecond
 )
 
@@ -30,7 +31,7 @@ var (
     BOARD    [H][W]int
     HEADS    map[int]Point
     HEADS_F  map[int]bool
-    HEADS_D  []int
+    HEADS_N  []int
     START    time.Time
 )
 
@@ -141,13 +142,16 @@ func bc_init(board *[H][W]int, src Point) BC {
 
 
 func (cc *CC) cc_connected(pos0, pos1 Point) bool {
-    connected := cc.ccid[pos0] == cc.ccid[pos1]
-    if connected && cc.ccid[pos0] == 0 {
-        connected = false
-        cids0 := cc.cc_cids(pos0)
-        cids1 := cc.cc_cids(pos1)
-        for _, cid0 := range cids0 {
-            for _, cid1 := range cids1 {
+    var cid0 = cc.ccid[pos0]
+    var cid1 = cc.ccid[pos1]
+    var connected bool
+    if cid0 != 0 && cid1 != 0 {
+        connected = cid0 == cid1
+    } else {
+        var cids0 = cc.cc_cids(pos0)
+        var cids1 = cc.cc_cids(pos1)
+        for cid0, _ := range cids0 {
+            for cid1, _ := range cids1 {
                 if cid0 == cid1 {
                     connected = true
                     break
@@ -157,22 +161,20 @@ func (cc *CC) cc_connected(pos0, pos1 Point) bool {
     }
     return connected
 }
-func (cc *CC) cc_cids(pos Point) []int {
+func (cc *CC) cc_cids(pos Point) map[int]bool {
     var cid = cc.ccid[pos]
     if cid > 0 {
-        return []int{cid}
+        return map[int]bool{cid:true}
     }
-    cids := []int{}
     cidmap := map[int]bool{}
     neighbors := neighbors_clean(cc.board, pos)
     for _, ngb := range neighbors {
         cid = cc.ccid[ngb]
         if cid > 0 && !cidmap[cid] {
             cidmap[cid] = true
-            cids = append(cids, cid)
         }
     }
-    return cids
+    return cidmap
 }
 func (cc *CC) cc_cid_count(cid int) int {
     return cc.cid_count[cid]
@@ -350,6 +352,18 @@ func read_stdin() Point {
             }
         }
     }
+    HEADS_N = []int{}
+    for pid := mid+1; pid < ID_START+4; pid++ {
+        if _, ok := HEADS[pid]; ok {
+            HEADS_N = append(HEADS_N, pid)
+        }
+    }
+    for pid := ID_START; pid < mid; pid++ {
+        if _, ok := HEADS[pid]; ok {
+            HEADS_N = append(HEADS_N, pid)
+        }
+    }
+    HEADS_N = append(HEADS_N, mid)
     return Point{mx, my}
 }
 func in_board(point Point) bool {
@@ -553,12 +567,31 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 }
 
 
-func fill_board(board *[H][W]int, heads map[int]Point) map[int]int {
-    sources := map[Point]int{}
-    board_fill := *board
+func evaluate(board *[H][W]int, next, dest Point) float64 {
+    var sources = map[Point]int{}
+    var distances = make(map[Point]int)
 
-    for _, pid := range HEADS_D {
-        pos := heads[pid]
+    var cc = cc_init(board)
+    var board_fill = *board
+
+    var mid = board[next.y][next.x]
+    var hid = board[dest.y][dest.x]
+
+    for _, pid := range HEADS_N {
+        var pos Point
+        if pid == mid {
+            pos = next
+        } else if pid == hid {
+            pos = dest
+        } else if cc.cc_connected(next, HEADS[pid]) {
+            pos = HEADS[pid]
+        } else if cc.cc_connected(dest, HEADS[pid]) {
+            pos = HEADS[pid]
+        } else {
+            continue
+        }
+        // debug(pid, pos, mid, next, hid, dest)
+
         pqueue := &PointQueue{}
         heap.Init(pqueue)
         heap.Push(pqueue, PriorityPoint{0, pos})
@@ -580,6 +613,7 @@ func fill_board(board *[H][W]int, heads map[int]Point) map[int]int {
                 if value == 0 || dist2 < value {
                     board_fill[ngb.y][ngb.x] = dist2
                     sources[ngb] = pid
+                    distances[ngb] = dist2
 
                     heap.Push(pqueue, PriorityPoint{dist2, ngb})
                 }
@@ -588,50 +622,44 @@ func fill_board(board *[H][W]int, heads map[int]Point) map[int]int {
     }
 
     var counter = map[int]int{}
-    var others = 1
-
-    var hid = HEADS_D[0]
-    var mid = HEADS_D[len(HEADS_D)-1]
-    var dist int
+    var max_dist int
 
     for point, pid := range sources {
-        nc := neighbors_count(board, point)
-        if nc > 2 {
-            nc = 20
-        }
-        if pid == mid {
-            dist = distance1(heads[hid], point)
-        } else if pid == hid {
-            dist = distance1(heads[mid], point)
+        if pid != mid {
+            board_fill[point.y][point.x] = pid
         } else {
-            others += 1
+            board_fill[point.y][point.x] = 0
+            if distances[point] > max_dist {
+                max_dist = distances[point]
+            }
         }
-        counter[pid] += nc * dist
     }
-    counter[mid] /= others
-    counter[hid] /= others
-
-    // -----------
-    // pids := sort.IntSlice {}
-    // for pid, _ := range counter {
-        // pids = append(pids, pid)
-    // }
-    // sort.Sort(pids)
-    // for _, pid := range pids {
-        // if pid == mid {
-            // debug("fill_board", heads[pid], pid, counter[pid], count_mid)
-        // } else {
-            // debug("fill_board", heads[pid], pid, counter[pid])
-        // }
-    // }
-    // for point, pid := range sources {
-        // if pid == 1002 {
-            // board_fill[point.y][point.x] = ^board_fill[point.y][point.x]
-        // }
-    // }
     // debug_board(&board_fill)
 
-    return counter
+    max_dist /= 2
+    cc = cc_init(&board_fill)
+
+    for point, pid := range sources {
+        if pid == mid {
+            var nc = neighbors_count(&board_fill, point)
+            var dist = distances[point]
+            if dist < max_dist {
+                dist = max_dist
+            }
+            counter[cc.ccid[point]] += nc * dist
+        }
+    }
+    // debug("counter", counter)
+
+    var score int
+    for cid, _ := range cc.cc_cids(next) {
+        var count, ok = counter[cid]
+        if ok && count > score {
+            score = count
+        }
+    }
+
+    return float64(score)
 }
 func max_play(board *[H][W]int, next Point, dest Point,
     alpha float64, beta float64, n int) float64 {
@@ -643,8 +671,6 @@ func max_play(board *[H][W]int, next Point, dest Point,
         return best_score
     }
 
-    bc := bc_init(board, next)
-
     var score float64
     for _, ngb := range neighbors {
         board[ngb.y][ngb.x] = board[next.y][next.x]
@@ -654,10 +680,6 @@ func max_play(board *[H][W]int, next Point, dest Point,
             score = min_play(board, ngb, dest, alpha, beta, n-1)
         }
         board[ngb.y][ngb.x] = 0
-
-        if bc.bc_point(ngb) {
-            score *= 1.04 // 0.87
-        }
 
         if score > best_score {
             best_score = score
@@ -703,50 +725,19 @@ func min_play(board *[H][W]int, next Point, dest Point,
 
     return best_score
 }
-func evaluate(board *[H][W]int, next, dest Point) float64 {
-    heads := map[int]Point{}
-    for pid, _ := range HEADS_F {
-        heads[pid] = HEADS[pid]
-    }
-
-    mid := board[next.y][next.x]
-    heads[mid] = next
-
-    pid := board[dest.y][dest.x]
-    heads[pid] = dest
-
-    counter := fill_board(board, heads)
-    if counter[pid] == 0 {
-        counter[pid] = 1
-    }
-
-    score := float64(counter[mid]) / float64(counter[pid])
-    return score
-}
 
 
-func heads_find(board *[H][W]int, src Point) {
-    cc := cc_init(&BOARD)
-    for pid, point := range HEADS {
-        if cc.cc_connected(src, point) {
-            HEADS_F[pid] = true
-        }
-    }
-    // debug("heads_find", HEADS_F, time.Since(START))
-}
-func select_head(board *[H][W]int, src Point) int {
-    head_dists := map[int]int{}
+func select_head(board *[H][W]int, src Point) []int {
+    var head_dists = map[int]int{}
 
     for pid, _ := range HEADS_F {
         _, path := best_dest(*board, src, HEADS[pid])
         head_dists[pid] = len(path)
     }
 
-    HEADS_D = sortByValue(head_dists)
-    HEADS_D = append(HEADS_D, board[src.y][src.x])
-
-    // debug("select_head", HEADS_D, time.Since(START))
-    return HEADS_D[0]
+    var heads_d = sortByValue(head_dists)
+    // heads_d = append(heads_d, board[src.y][src.x])
+    return heads_d
 }
 func head_min(board *[H][W]int, src Point, out chan Move) {
     defer func() {
@@ -755,22 +746,28 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
         out = nil
     }()
 
-    move_dirs := moves_clean(board, src)
+    var move_dirs = moves_clean(board, src)
     if len(move_dirs) <= 1 {
         out <-END
         return
     }
 
-    heads_find(board, src)
+    var cc = cc_init(board)
+    for pid, point := range HEADS {
+        if cc.cc_connected(src, point) {
+            HEADS_F[pid] = true
+        }
+    }
+
     if len(HEADS_F) == 0 {
         out <-END
         return
     }
 
-    head0 := select_head(board, src)
-    var dest Point = HEADS[head0]
+    var heads_d = select_head(board, src)
+    var head0 = heads_d[0]
 
-    best_scores := map[Move]float64{}
+    var best_scores = map[Move]float64{}
     var score, alpha, beta float64
 
     for n := 0; n < 2; n++ {
@@ -783,9 +780,21 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
             go func(board_calcul *[H][W]int, move Move) {
                 defer wg.Done()
 
-                next := next_pos(src, move)
-                board_calcul[next.y][next.x] = board_calcul[src.y][src.x]
+                var next = next_pos(src, move)
+                var dest = HEADS[head0]
 
+                if !cc.cc_connected(next, dest) {
+                    for i, pid := range heads_d {
+                        if i == 0 {
+                            continue
+                        }
+                        if HEADS_F[pid] && cc.cc_connected(next, HEADS[pid]) {
+                            dest = HEADS[pid]
+                        }
+                    }
+                }
+
+                board_calcul[next.y][next.x] = board_calcul[src.y][src.x]
                 if n == 0 {
                     score = evaluate(board_calcul, next, dest)
                 } else {
@@ -793,7 +802,7 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
                 }
 
                 board_calcul[next.y][next.x] = 0
-                best_scores[move] = score
+                best_scores[move] += score
 
                 // debug("minimax", n, move, best_scores[move], time.Since(START))
             }(&board_copy, move)
@@ -804,7 +813,7 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
         sort.Sort(ByScoreF{move_dirs, best_scores})
         out <-move_dirs[0]
 
-        scores := sort.Float64Slice{}
+        var scores = sort.Float64Slice{}
         for _, score := range best_scores {
             scores = append(scores, score)
         }
@@ -953,7 +962,7 @@ func best_move_fast(board [H][W]int, src Point) Move {
                 channel = nil
         }
     }
-    // debug(best_move, time.Since(START))
+    // debug(time.Since(START))
     return best_move
 }
 
