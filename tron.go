@@ -567,7 +567,7 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 }
 
 
-func evaluate(board *[H][W]int, next, dest Point) float64 {
+func evaluate(board *[H][W]int, next, dest Point) int {
     var sources = map[Point]int{}
     var distances = make(map[Point]int)
 
@@ -590,7 +590,6 @@ func evaluate(board *[H][W]int, next, dest Point) float64 {
         } else {
             continue
         }
-        // debug(pid, pos, mid, next, hid, dest)
 
         pqueue := &PointQueue{}
         heap.Init(pqueue)
@@ -659,19 +658,19 @@ func evaluate(board *[H][W]int, next, dest Point) float64 {
         }
     }
 
-    return float64(score)
+    return score
 }
 func max_play(board *[H][W]int, next Point, dest Point,
-    alpha float64, beta float64, n int) float64 {
+    alpha int, beta int, n int) int {
     // debug(strings.Repeat("  ", 2-n), "max_play", n, next, dest)
 
-    best_score := float64(math.MinInt32)
+    best_score := math.MinInt32
     neighbors := neighbors_clean(board, next)
     if len(neighbors) == 0 {
         return best_score
     }
 
-    var score float64
+    var score int
     for _, ngb := range neighbors {
         board[ngb.y][ngb.x] = board[next.y][next.x]
         if n == 0 {
@@ -685,7 +684,7 @@ func max_play(board *[H][W]int, next Point, dest Point,
             best_score = score
         }
 
-        alpha = math.Max(alpha, score)
+        alpha = int(math.Max(float64(alpha), float64(score)))
         if beta <= alpha {
             break
         }
@@ -694,16 +693,16 @@ func max_play(board *[H][W]int, next Point, dest Point,
     return best_score
 }
 func min_play(board *[H][W]int, next Point, dest Point,
-    alpha float64, beta float64, n int) float64 {
+    alpha int, beta int, n int) int {
     // debug(strings.Repeat("  ", 2-n), "min_play", n, next, dest)
 
-    best_score := float64(math.MaxInt32)
+    best_score := math.MaxInt32
     neighbors := neighbors_clean(board, dest)
     if len(neighbors) == 0 {
         return best_score
     }
 
-    var score float64
+    var score int
     for _, ngb := range neighbors {
         board[ngb.y][ngb.x] = board[dest.y][dest.x]
         if n == 0 {
@@ -717,7 +716,7 @@ func min_play(board *[H][W]int, next Point, dest Point,
             best_score = score
         }
 
-        beta = math.Min(beta, score)
+        beta = int(math.Min(float64(beta), float64(score)))
         if beta <= alpha {
             break
         }
@@ -767,8 +766,8 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
     var heads_d = select_head(board, src)
     var head0 = heads_d[0]
 
-    var best_scores = map[Move]float64{}
-    var score, alpha, beta float64
+    var best_scores = map[Move]int{}
+    var score, alpha, beta int
 
     for n := 0; n < 2; n++ {
         var wg sync.WaitGroup
@@ -802,7 +801,7 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
                 }
 
                 board_calcul[next.y][next.x] = 0
-                best_scores[move] += score
+                best_scores[move] = score
 
                 // debug("minimax", n, move, best_scores[move], time.Since(START))
             }(&board_copy, move)
@@ -810,10 +809,10 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
 
         wg.Wait()
         // debug("minimax", best_scores)
-        sort.Sort(ByScoreF{move_dirs, best_scores})
+        sort.Sort(ByScoreI{move_dirs, best_scores})
         out <-move_dirs[0]
 
-        var scores = sort.Float64Slice{}
+        var scores = sort.IntSlice{}
         for _, score := range best_scores {
             scores = append(scores, score)
         }
@@ -841,33 +840,14 @@ func max_move(board *[H][W]int, point Point, move Move) int {
     }
     return count
 }
-func flood_count(board [H][W]int, src Point) int {
-    pqueue := &PointQueue{}
-    heap.Init(pqueue)
-    heap.Push(pqueue, PriorityPoint{0, src})
 
-    board[src.y][src.x] = 1
-    var count int
-
-    for pqueue.Len() > 0 {
-        ppoint := heap.Pop(pqueue).(PriorityPoint)
-        next := ppoint.point
-        neighbors := neighbors_clean(&board, next)
-
-        for _, ngb := range neighbors {
-            count += 1
-            board[ngb.y][ngb.x] = count
-            heap.Push(pqueue, PriorityPoint{count, ngb})
-        }
-    }
-    return count
-}
 
 func dfs(board *[H][W]int, src Point, visited map[Point]bool) int {
-    count := 0
-    neighbors := neighbors_clean(board, src)
+    var neighbors = neighbors_clean(board, src)
+    var count = 1
+
     for _, ngb := range neighbors {
-        score := 1
+        var score int
         if !visited[ngb] {
             visited[ngb] = true
             score += dfs(board, ngb, visited)
@@ -877,35 +857,27 @@ func dfs(board *[H][W]int, src Point, visited map[Point]bool) int {
     return count
 }
 func dfs_start(board *[H][W]int, src Point) int {
-    visited := map[Point]bool{}
+    var neighbors = neighbors_clean(board, src)
+    var count = 1
 
-    count := 0
-    neighbors := neighbors_clean(board, src)
+    visited := map[Point]bool{}
     for _, ngb := range neighbors {
-        score := 1
+        var score int
         if !visited[ngb] {
             visited[ngb] = true
-            score += dfs(board, ngb, visited)
+            score = 1 + dfs(board, ngb, visited)
         }
         count = int(math.Max(float64(count), float64(score)))
     }
     return count
 }
-func dm_max(board *[H][W]int, src Point, n int) int {
-    neighbors := neighbors_clean(board, src)
-    if len(neighbors) == 0 {
-        return 0
-    }
+func dm_max(board *[H][W]int, src Point) int {
+    var neighbors = neighbors_clean(board, src)
+    var best_score = 1
 
-    best_score := math.MinInt32
-    var score int
     for _, ngb := range neighbors {
         board[ngb.y][ngb.x] = board[src.y][src.x]
-        if n == 0 {
-            score = 1 + dfs_start(board, ngb)
-        } else {
-            score = 1 + dm_max(board, ngb, n-1)
-        }
+        var score = 1 + dfs_start(board, ngb)
         board[ngb.y][ngb.x] = 0
 
         if score > best_score {
@@ -925,18 +897,18 @@ func default_move(board *[H][W]int, src Point) Move {
         return move_dirs[0]
     }
 
-    best_scores := map[Move]int{}
+    var best_scores = map[Move]int{}
     var score int
+
     for _, move := range move_dirs {
         next := next_pos(src, move)
         board[next.y][next.x] = board[src.y][src.x]
-        score = dm_max(board, next, 3)
+        score = dm_max(board, next)
         board[next.y][next.x] = 0
-
         best_scores[move] = score
     }
-
     // debug("best_scores", best_scores)
+
     sort.Sort(ByScoreI{move_dirs, best_scores})
     best_move := move_dirs[0]
 
