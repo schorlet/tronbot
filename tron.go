@@ -648,16 +648,15 @@ func evaluate(board *[H][W]int, next, dest Point) int {
     }
     // debug_board(&board_fill)
 
-    max_dist /= 2
     cc = cc_init(&board_fill)
 
     for point, pid := range sources {
         if pid == mid {
             var nc = neighbors_count(&board_fill, point)
-            var dist = distances[point]
-            if dist < max_dist {
-                dist = max_dist
+            if nc > 2 {
+                nc = 20
             }
+            var dist = distances[point]
             counter[cc.ccid[point]] += nc * dist
         }
     }
@@ -671,6 +670,7 @@ func evaluate(board *[H][W]int, next, dest Point) int {
         }
     }
 
+    // dm_dfs_start(&board_fill, next, 1)
     return score
 }
 
@@ -844,33 +844,39 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
 }
 
 
-func dm_dfs(board *[H][W]int, src Point, visited map[Point]bool) int {
+func dm_dfs(board *[H][W]int, src Point, visited map[Point]bool, bc BC) int {
     var neighbors = neighbors_clean(board, src)
     var count = 1
-
+    var isbc = bc.bc_point(src)
     for _, ngb := range neighbors {
         var score int
         if !visited[ngb] {
             visited[ngb] = true
-            score += dm_dfs(board, ngb, visited)
+            if isbc {
+                score = 1 + dm_dfs(board, ngb, visited, bc)
+            } else {
+                score += dm_dfs(board, ngb, visited, bc)
+            }
         }
-        count += score
+        if isbc {
+            count = int(math.Max(float64(count), float64(score)))
+        } else {
+            count += score
+        }
     }
     return count
 }
 func dm_dfs_start(board *[H][W]int, src Point) int {
-    var neighbors = neighbors_clean(board, src)
-    var count = 1
-
-    visited := map[Point]bool{}
-    for _, ngb := range neighbors {
-        var score int
-        if !visited[ngb] {
-            visited[ngb] = true
-            score = 1 + dm_dfs(board, ngb, visited)
-        }
-        count = int(math.Max(float64(count), float64(score)))
-    }
+    var bc = bc_init(board, src)
+    // var board_bc = *board
+    // for _, point := range bc.articulations {
+        // if point != src {
+            // board_bc[point.y][point.x] = -1
+        // }
+    // }
+    // debug_board(&board_bc)
+    var visited = map[Point]bool{}
+    var count = dm_dfs(board, src, visited, bc)
     return count
 }
 
@@ -990,7 +996,7 @@ func dm_max(board *[H][W]int, src Point, n int) int {
     for _, ngb := range neighbors {
         board[ngb.y][ngb.x] = board[src.y][src.x]
         if n == 0 {
-            score = dm_bfs_start(board, ngb)
+            score = dm_dfs_start(board, ngb)
         } else {
             score = 1 + dm_max(board, ngb, n-1)
         }
