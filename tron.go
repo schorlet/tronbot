@@ -161,6 +161,9 @@ func (cc *CC) cc_connected(pos0, pos1 Point) bool {
     }
     return connected
 }
+func (cc *CC) cc_cid(pos Point) int {
+    return cc.ccid[pos]
+}
 func (cc *CC) cc_cids(pos Point) map[int]bool {
     var cid = cc.ccid[pos]
     if cid > 0 {
@@ -481,7 +484,18 @@ func directions(src, dest Point) map[Move]bool {
 
 
 func debug_board(board *[H][W]int) {
+    fmt.Fprintf(os.Stderr, "%3d |", -1)
+    for x := range board[0] {
+        fmt.Fprintf(os.Stderr, "%5d", x)
+    }
+    fmt.Fprintln(os.Stderr)
+    fmt.Fprint(os.Stderr, "----+")
+    for _ = range board[0] {
+        fmt.Fprint(os.Stderr, "-----")
+    }
+    fmt.Fprintln(os.Stderr)
     for y := range board {
+        fmt.Fprintf(os.Stderr, "%3d |", y)
         for x := range board[y] {
             fmt.Fprintf(os.Stderr, "%5d", board[y][x])
         }
@@ -565,7 +579,6 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
     }
     return END, dest_path
 }
-
 
 func evaluate(board *[H][W]int, next, dest Point) int {
     var sources = map[Point]int{}
@@ -725,7 +738,6 @@ func min_play(board *[H][W]int, next Point, dest Point,
     return best_score
 }
 
-
 func select_head(board *[H][W]int, src Point) []int {
     var head_dists = map[int]int{}
 
@@ -831,18 +843,7 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
 }
 
 
-func max_move(board *[H][W]int, point Point, move Move) int {
-    next := next_pos(point, move)
-    var count int
-    for is_clean(board, next) {
-        count += 1
-        next = next_pos(next, move)
-    }
-    return count
-}
-
-
-func dfs(board *[H][W]int, src Point, visited map[Point]bool) int {
+func dm_dfs(board *[H][W]int, src Point, visited map[Point]bool) int {
     var neighbors = neighbors_clean(board, src)
     var count = 1
 
@@ -850,13 +851,13 @@ func dfs(board *[H][W]int, src Point, visited map[Point]bool) int {
         var score int
         if !visited[ngb] {
             visited[ngb] = true
-            score += dfs(board, ngb, visited)
+            score += dm_dfs(board, ngb, visited)
         }
         count += score
     }
     return count
 }
-func dfs_start(board *[H][W]int, src Point) int {
+func dm_dfs_start(board *[H][W]int, src Point) int {
     var neighbors = neighbors_clean(board, src)
     var count = 1
 
@@ -865,19 +866,93 @@ func dfs_start(board *[H][W]int, src Point) int {
         var score int
         if !visited[ngb] {
             visited[ngb] = true
-            score = 1 + dfs(board, ngb, visited)
+            score = 1 + dm_dfs(board, ngb, visited)
         }
         count = int(math.Max(float64(count), float64(score)))
     }
     return count
 }
-func dm_max(board *[H][W]int, src Point) int {
+
+func dm_bfs(board *[H][W]int, src Point, cc CC) int {
+    pqueue := &PointQueue{}
+    heap.Init(pqueue)
+    heap.Push(pqueue, PriorityPoint{0, src})
+
+    var count int
+    var best_score int
+    var cid_count = map[int]int{}
+
+    for pqueue.Len() > 0 {
+        var ppoint = heap.Pop(pqueue).(PriorityPoint)
+        var next = ppoint.point
+        var neighbors = neighbors(next)
+
+        for _, ngb := range neighbors {
+            var value = board[ngb.y][ngb.x]
+            if value == 0 {
+                count += 1
+                board[ngb.y][ngb.x] = count
+                heap.Push(pqueue, PriorityPoint{count, ngb})
+                cid_count[cc.cc_cid(ngb)] += 1
+
+            } else if value == -1 {
+                board[ngb.y][ngb.x] = -2
+                var score = 1 + dm_bfs(board, ngb, cc)
+                // debug(ngb, score, best_score)
+                if score > best_score {
+                    best_score = score
+                }
+            }
+        }
+    }
+
+    if len(cid_count) > 1 {
+        for _, score := range cid_count {
+            if score < count {
+                count = score
+            }
+        }
+    }
+    count += best_score
+    return count
+}
+func dm_bfs_start(board *[H][W]int, src Point) int {
+    var bc = bc_init(board, src)
+    var board_bc = *board
+    for _, point := range bc.articulations {
+        if point != src {
+            board_bc[point.y][point.x] = -1
+        } else {
+            return 1 + dm_max(board, src, 0)
+        }
+    }
+    // debug_board(&board_bc)
+
+    var cc = cc_init(&board_bc)
+    // board_cc := board_bc
+    // for point, cid := range cc.ccid {
+        // board_cc[point.y][point.x] = cid
+    // }
+    // debug_board(&board_cc)
+
+    var count = dm_bfs(&board_bc, src, cc)
+    // debug_board(&board_bc)
+    // debug(src, count, time.Since(START))
+    return count
+}
+
+func dm_max(board *[H][W]int, src Point, n int) int {
     var neighbors = neighbors_clean(board, src)
     var best_score = 1
 
+    var score int
     for _, ngb := range neighbors {
         board[ngb.y][ngb.x] = board[src.y][src.x]
-        var score = 1 + dfs_start(board, ngb)
+        if n == 0 {
+            score = dm_bfs_start(board, ngb)
+        } else {
+            score = 1 + dm_max(board, ngb, n-1)
+        }
         board[ngb.y][ngb.x] = 0
 
         if score > best_score {
@@ -903,7 +978,7 @@ func default_move(board *[H][W]int, src Point) Move {
     for _, move := range move_dirs {
         next := next_pos(src, move)
         board[next.y][next.x] = board[src.y][src.x]
-        score = dm_max(board, next)
+        score = dm_max(board, next, 1)
         board[next.y][next.x] = 0
         best_scores[move] = score
     }
