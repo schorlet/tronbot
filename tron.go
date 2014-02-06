@@ -14,10 +14,10 @@ import (
 var _ = strings.Repeat
 
 const (
-    // ID_START int = 10001
-    // W, H int = 30, 20
-    W, H int = 10, 10
-    ID_START int = 1001
+    ID_START int = 10001
+    W, H int = 30, 20
+    // W, H int = 10, 10
+    // ID_START int = 1001
     MAX_DURATION time.Duration = 90 * time.Millisecond
 )
 
@@ -643,8 +643,8 @@ func evaluate(board *[H][W]int, next, dest Point) int {
             board_fill[point.y][point.x] = 0
             if distances[point] > max_dist {
                 max_dist = distances[point]
-            }
         }
+    }
     }
     // debug_board(&board_fill)
 
@@ -673,6 +673,7 @@ func evaluate(board *[H][W]int, next, dest Point) int {
 
     return score
 }
+
 func max_play(board *[H][W]int, next Point, dest Point,
     alpha int, beta int, n int) int {
     // debug(strings.Repeat("  ", 2-n), "max_play", n, next, dest)
@@ -885,7 +886,34 @@ func dm_bfs(board *[H][W]int, src Point, cc CC) int {
     for pqueue.Len() > 0 {
         var ppoint = heap.Pop(pqueue).(PriorityPoint)
         var next = ppoint.point
+
         var neighbors = neighbors(next)
+        var ngb_value, ngb_count int
+
+        for _, ngb := range neighbors {
+            var value = board[ngb.y][ngb.x]
+            if value == -1 || value == -2 {
+                ngb_value += value * value
+            }
+            if value == -1 {
+                ngb_count += 1
+            }
+        }
+
+        var ngb_distinct bool
+        if ngb_value == 2 || ngb_value == 6 {
+            var ngb_one = []Point{}
+            for _, ngb := range neighbors {
+                var value = board[ngb.y][ngb.x]
+                if value == -1 {
+                    ngb_one = append(ngb_one, ngb)
+                }
+            }
+            var ngb0, ngb1 = ngb_one[0], ngb_one[1]
+            if ngb0.x == ngb1.x || ngb0.y == ngb1.y {
+                ngb_distinct = true
+            }
+        }
 
         for _, ngb := range neighbors {
             var value = board[ngb.y][ngb.x]
@@ -893,27 +921,40 @@ func dm_bfs(board *[H][W]int, src Point, cc CC) int {
                 count += 1
                 board[ngb.y][ngb.x] = count
                 heap.Push(pqueue, PriorityPoint{count, ngb})
-                cid_count[cc.cc_cid(ngb)] += 1
+
+                if ngb_distinct {
+                    cid_count[cc.cc_cid(ngb)] += 1
+                } else {
+                    cid_count[1] += 1
+                }
 
             } else if value == -1 {
                 board[ngb.y][ngb.x] = -2
                 var score = 1 + dm_bfs(board, ngb, cc)
-                // debug(ngb, score, best_score)
-                if score > best_score {
+
+                if !ngb_distinct {
+                    if score > best_score {
+                        best_score = score
+                    }
+                } else if ngb_value != 1 && ngb_value != 3 && ngb_value != 7 {
+                    best_score += score
+                } else if score > best_score {
                     best_score = score
                 }
             }
         }
     }
-
+    // debug(src, cid_count, best_score)
     if len(cid_count) > 1 {
+        count = best_score
         for _, score := range cid_count {
-            if score < count {
+            if score > count {
                 count = score
             }
         }
+    } else {
+        count += best_score
     }
-    count += best_score
     return count
 }
 func dm_bfs_start(board *[H][W]int, src Point) int {
@@ -978,7 +1019,7 @@ func default_move(board *[H][W]int, src Point) Move {
     for _, move := range move_dirs {
         next := next_pos(src, move)
         board[next.y][next.x] = board[src.y][src.x]
-        score = dm_max(board, next, 1)
+        score = dm_max(board, next, 2)
         board[next.y][next.x] = 0
         best_scores[move] = score
     }
