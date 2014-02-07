@@ -14,10 +14,10 @@ import (
 var _ = strings.Repeat
 
 const (
-    ID_START int = 10001
-    W, H int = 30, 20
-    // W, H int = 10, 10
-    // ID_START int = 1001
+    // ID_START int = 10001
+    // W, H int = 30, 20
+    W, H int = 10, 10
+    ID_START int = 1001
     MAX_DURATION time.Duration = 90 * time.Millisecond
 )
 
@@ -585,6 +585,7 @@ func evaluate(board *[H][W]int, next, dest Point) int {
     var distances = make(map[Point]int)
 
     var cc = cc_init(board)
+    var connected = cc.cc_connected(next, dest)
     var board_fill = *board
 
     var mid = board[next.y][next.x]
@@ -634,43 +635,48 @@ func evaluate(board *[H][W]int, next, dest Point) int {
     }
 
     var counter = map[int]int{}
-    var max_dist int
+    var others = map[int]int{}
+    var dist int
 
     for point, pid := range sources {
-        if pid != mid {
-            board_fill[point.y][point.x] = pid
-        } else {
-            board_fill[point.y][point.x] = 0
-            if distances[point] > max_dist {
-                max_dist = distances[point]
+        nc := neighbors_count(board, point)
+        if nc > 2 {
+            nc = 10
         }
-    }
-    }
-    // debug_board(&board_fill)
-
-    cc = cc_init(&board_fill)
-
-    for point, pid := range sources {
         if pid == mid {
-            var nc = neighbors_count(&board_fill, point)
-            if nc > 2 {
-                nc = 20
+            if connected {
+                dist = distance1(dest, point)
+                counter[cc.cc_cid(point)] += nc * dist
+            } else {
+                dist = distances[point]
+                counter[cc.cc_cid(point)] += nc * dist
             }
-            var dist = distances[point]
-            counter[cc.ccid[point]] += nc * dist
+        } else if pid == hid && connected {
+            dist = distance1(next, point)
+            others[cc.cc_cid(point)] += nc * dist
+        } else {
+            dist = distances[point]
+            others[cc.cc_cid(point)] += nc * dist
         }
     }
-    // debug("counter", counter)
 
+    // debug("counter", counter, others)
+    for cid, count := range counter {
+        var other, ok = others[cid]
+        if ok && other > 0 {
+            counter[cid] = int(float64(count * count) / float64(other))
+        } else {
+            counter[cid] = int(float64(count) * 0.8)
+        }
+    }
+
+    // debug("counter", counter, others)
     var score int
-    for cid, _ := range cc.cc_cids(next) {
-        var count, ok = counter[cid]
-        if ok && count > score {
+    for _, count := range counter {
+        if count > score {
             score = count
         }
     }
-
-    // dm_dfs_start(&board_fill, next, 1)
     return score
 }
 
@@ -1025,7 +1031,7 @@ func default_move(board *[H][W]int, src Point) Move {
     for _, move := range move_dirs {
         next := next_pos(src, move)
         board[next.y][next.x] = board[src.y][src.x]
-        score = dm_max(board, next, 2)
+        score = dm_max(board, next, 1)
         board[next.y][next.x] = 0
         best_scores[move] = score
     }
