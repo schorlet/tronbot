@@ -636,27 +636,35 @@ func evaluate(board *[H][W]int, next, dest Point) int {
 
     var counter = map[int]int{}
     var others = map[int]int{}
-    var dist int
+    // var dist int
+
+    // var max_dist int
+    // for point, pid := range sources {
+        // if pid == mid {
+            // dist = distances[point]
+            // if dist > max_dist {
+                // max_dist = dist
+            // }
+        // }
+    // }
+    // max_dist = int(float64(max_dist) * 0.65)
 
     for point, pid := range sources {
         nc := neighbors_count(board, point)
         if nc > 2 {
-            nc = 10
+            nc += 10
         }
         if pid == mid {
-            if connected {
-                dist = distance1(dest, point)
-                counter[cc.cc_cid(point)] += nc * dist
-            } else {
-                dist = distances[point]
-                counter[cc.cc_cid(point)] += nc * dist
-            }
+            // dist = distances[point]
+            counter[cc.cc_cid(point)] += nc// * dist
+
         } else if pid == hid && connected {
-            dist = distance1(next, point)
-            others[cc.cc_cid(point)] += nc * dist
-        } else {
-            dist = distances[point]
-            others[cc.cc_cid(point)] += nc * dist
+            // dist = distances[point]
+            others[cc.cc_cid(point)] += nc// * dist
+
+        } else if pid != hid && cc.cc_connected(next, point) {
+            // dist = distances[point]
+            others[cc.cc_cid(point)] += nc// * dist
         }
     }
 
@@ -665,13 +673,13 @@ func evaluate(board *[H][W]int, next, dest Point) int {
         var other, ok = others[cid]
         if ok && other > 0 {
             counter[cid] = int(float64(count * count) / float64(other))
-        } else {
-            counter[cid] = int(float64(count) * 0.8)
+        // } else {
+            // counter[cid] = int(float64(count) * 0.6)
         }
     }
 
-    // debug("counter", counter, others)
-    var score int
+    // debug("counter2", counter)
+    var score = math.MinInt32
     for _, count := range counter {
         if count > score {
             score = count
@@ -822,7 +830,7 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
                 board_calcul[next.y][next.x] = 0
                 best_scores[move] = score
 
-                // debug("minimax", n, move, best_scores[move], time.Since(START))
+                // debug(n, "minimax", move, best_scores[move], time.Since(START))
             }(&board_copy, move)
         }
 
