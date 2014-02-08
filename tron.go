@@ -673,8 +673,8 @@ func evaluate(board *[H][W]int, next, dest Point) int {
         var other, ok = others[cid]
         if ok && other > 0 {
             counter[cid] = int(float64(count * count) / float64(other))
-        // } else {
-            // counter[cid] = int(float64(count) * 0.6)
+        } else {
+            counter[cid] = int(float64(count) * 0.6)
         }
     }
 
@@ -858,18 +858,18 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
 }
 
 
-func dm_dfs(board *[H][W]int, src Point, visited map[Point]bool, bc BC) int {
+func dm_dfs(board *[H][W]int, src Point, visited map[Point]bool, bc BC, wasbc bool) int {
     var neighbors = neighbors_clean(board, src)
     var count = 1
-    var isbc = bc.bc_point(src)
+    var isbc = wasbc && bc.bc_point(src)
     for _, ngb := range neighbors {
         var score int
         if !visited[ngb] {
             visited[ngb] = true
             if isbc {
-                score = 1 + dm_dfs(board, ngb, visited, bc)
+                score = 1 + dm_dfs(board, ngb, visited, bc, isbc)
             } else {
-                score += dm_dfs(board, ngb, visited, bc)
+                score += dm_dfs(board, ngb, visited, bc, isbc)
             }
         }
         if isbc {
@@ -890,7 +890,7 @@ func dm_dfs_start(board *[H][W]int, src Point) int {
     // }
     // debug_board(&board_bc)
     var visited = map[Point]bool{}
-    var count = dm_dfs(board, src, visited, bc)
+    var count = dm_dfs(board, src, visited, bc, true)
     return count
 }
 
@@ -1020,8 +1020,9 @@ func dm_max(board *[H][W]int, src Point, n int) int {
             best_score = score
         }
     }
-
-    return best_score
+    var nc_count = len(neighbors)
+    var alt_count = 10 - nc_count * nc_count
+    return best_score + alt_count
 }
 func default_move(board *[H][W]int, src Point) Move {
     move_dirs := moves_clean(board, src)
@@ -1039,7 +1040,7 @@ func default_move(board *[H][W]int, src Point) Move {
     for _, move := range move_dirs {
         next := next_pos(src, move)
         board[next.y][next.x] = board[src.y][src.x]
-        score = dm_max(board, next, 1)
+        score = dm_max(board, next, 2)
         board[next.y][next.x] = 0
         best_scores[move] = score
     }
