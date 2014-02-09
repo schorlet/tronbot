@@ -582,6 +582,7 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 
 func evaluate(board *[H][W]int, next, dest Point) int {
     var sources = map[Point]int{}
+    var distances = map[Point]int{}
 
     var cc = cc_init(board)
     var board_fill = *board
@@ -624,49 +625,43 @@ func evaluate(board *[H][W]int, next, dest Point) int {
                 if value == 0 || dist2 < value {
                     board_fill[ngb.y][ngb.x] = dist2
                     sources[ngb] = pid
+                    distances[ngb] = dist2
                     heap.Push(pqueue, PriorityPoint{dist2, ngb})
                 }
             }
         }
     }
 
-
-    var connected = cc.cc_connected(next, dest)
     var counter = map[int]int{}
-    var others = map[int]int{}
+    var max_dist = map[int]int{}
 
     for point, pid := range sources {
-        var nc = neighbors_count(board, point)
-        if nc > 2 {
-            nc += nc
-        }
         if pid == mid {
+            var nc = neighbors_count(board, point)
+            switch nc {
+                case 2: nc = 6
+                case 3: nc = 18
+                case 4: nc = 20
+            }
             counter[cc.cc_cid(point)] += nc
 
-        } else if pid == hid && connected {
-            others[cc.cc_cid(point)] += nc
-
-        } else if pid != hid && cc.cc_connected(next, point) {
-            others[cc.cc_cid(point)] += nc
-        }
-    }
-
-    // debug("counter", counter, others, connected)
-    for cid, count := range counter {
-        var other, ok = others[cid]
-        if ok && other > 0 {
-            counter[cid] = int(float64(count * count) / float64(other))
-        } else {
-            counter[cid] = int(float64(count) * 0.43)
+            var dist = distances[point]
+            if dist > max_dist[cc.cc_cid(point)] {
+                max_dist[cc.cc_cid(point)] = dist
+            }
         }
     }
 
     // debug("counter2", counter)
     var score = math.MinInt32
-    for _, count := range counter {
-        if count > score {
-            score = count
+    for cid, count := range counter {
+        var value = count * max_dist[cid]
+        if value > score {
+            score = value
         }
+    }
+    if len(counter) > 1 {
+        score = int(float64(score) * 0.52)
     }
     return score
 }
