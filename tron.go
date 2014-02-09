@@ -582,10 +582,8 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 
 func evaluate(board *[H][W]int, next, dest Point) int {
     var sources = map[Point]int{}
-    var distances = make(map[Point]int)
 
     var cc = cc_init(board)
-    var connected = cc.cc_connected(next, dest)
     var board_fill = *board
 
     var mid = board[next.y][next.x]
@@ -626,55 +624,40 @@ func evaluate(board *[H][W]int, next, dest Point) int {
                 if value == 0 || dist2 < value {
                     board_fill[ngb.y][ngb.x] = dist2
                     sources[ngb] = pid
-                    distances[ngb] = dist2
-
                     heap.Push(pqueue, PriorityPoint{dist2, ngb})
                 }
             }
         }
     }
 
+
+    var connected = cc.cc_connected(next, dest)
     var counter = map[int]int{}
     var others = map[int]int{}
-    // var dist int
-
-    // var max_dist int
-    // for point, pid := range sources {
-        // if pid == mid {
-            // dist = distances[point]
-            // if dist > max_dist {
-                // max_dist = dist
-            // }
-        // }
-    // }
-    // max_dist = int(float64(max_dist) * 0.65)
 
     for point, pid := range sources {
-        nc := neighbors_count(board, point)
+        var nc = neighbors_count(board, point)
         if nc > 2 {
-            nc += 10
+            nc += nc
         }
         if pid == mid {
-            // dist = distances[point]
-            counter[cc.cc_cid(point)] += nc// * dist
+            counter[cc.cc_cid(point)] += nc
 
         } else if pid == hid && connected {
-            // dist = distances[point]
-            others[cc.cc_cid(point)] += nc// * dist
+            others[cc.cc_cid(point)] += nc
 
         } else if pid != hid && cc.cc_connected(next, point) {
-            // dist = distances[point]
-            others[cc.cc_cid(point)] += nc// * dist
+            others[cc.cc_cid(point)] += nc
         }
     }
 
-    // debug("counter", counter, others)
+    // debug("counter", counter, others, connected)
     for cid, count := range counter {
         var other, ok = others[cid]
         if ok && other > 0 {
             counter[cid] = int(float64(count * count) / float64(other))
         } else {
-            counter[cid] = int(float64(count) * 0.6)
+            counter[cid] = int(float64(count) * 0.43)
         }
     }
 
@@ -835,7 +818,7 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
         }
 
         wg.Wait()
-        // debug("minimax", best_scores)
+        debug("minimax", best_scores)
         sort.Sort(ByScoreI{move_dirs, best_scores})
         out <-move_dirs[0]
 
@@ -847,11 +830,14 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
         alpha, beta = scores[0], scores[scores.Len()-1]
         // debug(n, "alpha:", alpha, "beta:", beta)
 
-        if alpha == 0 {
+        if float64(alpha) < float64(beta) * 0.11 {
             if len(move_dirs) == 2 {
                 break
             } else {
+                var bad_move = move_dirs[len(move_dirs)-1]
+                delete(best_scores, bad_move)
                 move_dirs = move_dirs[0:len(move_dirs)-1]
+                alpha = scores[1] - alpha
             }
         }
     }
