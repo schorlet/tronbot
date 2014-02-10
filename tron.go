@@ -1000,13 +1000,32 @@ func dm_max(board *[H][W]int, src Point, n int) int {
             best_score = score
         }
     }
-    var nc_count = len(neighbors)
-    var alt_count = 10 - nc_count * nc_count
-    return best_score + alt_count
+    return best_score
+}
+func dm_neighbors(board *[H][W]int, src Point, n int) int {
+    var neighbors = neighbors_clean(board, src)
+
+    var best_score = len(neighbors)
+    best_score = 10 - best_score * best_score
+
+    if n > 0 {
+        var alt_score int
+        for _, ngb := range neighbors {
+            board[ngb.y][ngb.x] = board[src.y][src.x]
+            var score = dm_neighbors(board, ngb, n-1)
+            board[ngb.y][ngb.x] = 0
+
+            if score > alt_score {
+                alt_score = score
+            }
+        }
+        best_score += alt_score
+    }
+    return best_score
 }
 func default_move(board *[H][W]int, src Point) Move {
-    move_dirs := moves_clean(board, src)
-    move_len := len(move_dirs)
+    var move_dirs = moves_clean(board, src)
+    var move_len = len(move_dirs)
 
     if move_len == 0 {
         return END
@@ -1015,23 +1034,36 @@ func default_move(board *[H][W]int, src Point) Move {
     }
 
     var best_scores = map[Move]int{}
-    var score int
+    var neighbors = map[Move]int{}
 
     for _, move := range move_dirs {
         next := next_pos(src, move)
         board[next.y][next.x] = board[src.y][src.x]
-        score = dm_max(board, next, 2)
+        best_scores[move] = dm_max(board, next, 3)
+        neighbors[move] = dm_neighbors(board, next, 6)
         board[next.y][next.x] = 0
-        best_scores[move] = score
     }
-    // debug("best_scores", best_scores)
+    // debug("best_scores", best_scores, neighbors)
 
     sort.Sort(ByScoreI{move_dirs, best_scores})
-    best_move := move_dirs[0]
+    var best_move = move_dirs[0]
+
+    var best_score = best_scores[best_move]
+    var best_moves = []Move{}
+
+    for _, move := range move_dirs {
+        if best_scores[move] == best_score {
+            best_moves = append(best_moves, move)
+        }
+    }
+
+    if len(best_moves) > 1 {
+        sort.Sort(ByScoreI{best_moves, neighbors})
+        best_move = best_moves[0]
+    }
 
     return best_move
 }
-
 
 func best_move_fast(board [H][W]int, src Point) Move {
     var max_delay = time.After(MAX_DURATION)
