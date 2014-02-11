@@ -580,25 +580,22 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
     return END, dest_path
 }
 
-func evaluate(board *[H][W]int, next, dest Point) int {
+func evaluate(board *[H][W]int, src, dest Point) int {
     var sources = map[Point]int{}
-    var distances = map[Point]int{}
 
     var cc = cc_init(board)
     var board_fill = *board
 
-    var mid = board[next.y][next.x]
+    var mid = board[src.y][src.x]
     var hid = board[dest.y][dest.x]
 
     for _, pid := range HEADS_N {
         var pos Point
         if pid == mid {
-            pos = next
-        } else if pid == hid {
+            pos = src
+        } else if pid == hid && cc.cc_connected(src, dest) {
             pos = dest
-        } else if cc.cc_connected(next, HEADS[pid]) {
-            pos = HEADS[pid]
-        } else if cc.cc_connected(dest, HEADS[pid]) {
+        } else if cc.cc_connected(src, HEADS[pid]) {
             pos = HEADS[pid]
         } else {
             continue
@@ -609,15 +606,15 @@ func evaluate(board *[H][W]int, next, dest Point) int {
         heap.Push(pqueue, PriorityPoint{0, pos})
 
         for pqueue.Len() > 0 {
-            ppoint := heap.Pop(pqueue).(PriorityPoint)
-            dist := ppoint.priority
-            next := ppoint.point
-            neighbors := neighbors_clean(board, next)
+            var ppoint = heap.Pop(pqueue).(PriorityPoint)
+            var dist = ppoint.priority
+            var next = ppoint.point
+            var neighbors = neighbors_clean(board, next)
 
             for _, ngb := range neighbors {
-                value := board_fill[ngb.y][ngb.x]
+                var value = board_fill[ngb.y][ngb.x]
 
-                dist2 := distance1(pos, ngb)
+                var dist2 = distance1(pos, ngb)
                 if dist2 <= dist {
                     dist2 = dist + 1
                 }
@@ -625,7 +622,6 @@ func evaluate(board *[H][W]int, next, dest Point) int {
                 if value == 0 || dist2 < value {
                     board_fill[ngb.y][ngb.x] = dist2
                     sources[ngb] = pid
-                    distances[ngb] = dist2
                     heap.Push(pqueue, PriorityPoint{dist2, ngb})
                 }
             }
@@ -633,36 +629,32 @@ func evaluate(board *[H][W]int, next, dest Point) int {
     }
 
     var counter = map[int]int{}
-    var max_dist = map[int]int{}
 
     for point, pid := range sources {
         if pid == mid {
+            board_fill[point.y][point.x] = 0
+
             var nc = neighbors_count(board, point)
             switch nc {
-                case 2: nc = 6
-                case 3: nc = 18
-                case 4: nc = 20
+                case 3: nc = 6
+                case 4: nc = 7
             }
             counter[cc.cc_cid(point)] += nc
 
-            var dist = distances[point]
-            if dist > max_dist[cc.cc_cid(point)] {
-                max_dist[cc.cc_cid(point)] = dist
-            }
+        } else {
+            board_fill[point.y][point.x] = pid
         }
     }
+    // debug_board(&board_fill)
 
-    // debug("counter2", counter)
-    var score = math.MinInt32
-    for cid, count := range counter {
-        var value = count * max_dist[cid]
+    var score int
+    for _, value := range counter {
         if value > score {
             score = value
         }
     }
-    if len(counter) > 1 {
-        score = int(float64(score) * 0.52)
-    }
+
+    score = score * dm_bfs_start(&board_fill, src)
     return score
 }
 
@@ -808,7 +800,6 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
                 board_calcul[next.y][next.x] = 0
                 best_scores[move] = score
 
-                // debug(n, "minimax", move, best_scores[move], time.Since(START))
             }(&board_copy, move)
         }
 
