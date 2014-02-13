@@ -113,17 +113,17 @@ func (bc *BC) bc_dfs(check, parent Point) {
         if bc.dfn[ngb] == 0 {
             child_count += 1
             bc.bc_dfs(ngb, check)
-            if bc.low[check] >= bc.low[ngb] {
+            if bc.low[check] > bc.low[ngb] {
                 bc.low[check] = bc.low[ngb]
             }
 
-            if parent != bc.src && bc.low[ngb] >= bc.dfn[check] {
+            if parent != bc.src && bc.low[ngb] > bc.dfn[check] {
                 bc.articulations = append(bc.articulations, check)
                 // debug("Articulation point ", check, "dfn=", bc.dfn[check],
                     // "low=", bc.low[ngb])
             }
         } else if ngb != parent {
-            if bc.low[check] >= bc.dfn[ngb] {
+            if bc.low[check] > bc.dfn[ngb] {
                 bc.low[check] = bc.dfn[ngb]
             }
         }
@@ -582,6 +582,7 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 
 func evaluate(board *[H][W]int, src, dest Point) int {
     var sources = map[Point]int{}
+    var distances = map[Point]int{}
 
     var cc = cc_init(board)
     var board_fill = *board
@@ -622,6 +623,7 @@ func evaluate(board *[H][W]int, src, dest Point) int {
                 if value == 0 || dist2 < value {
                     board_fill[ngb.y][ngb.x] = dist2
                     sources[ngb] = pid
+                    distances[ngb] = dist2
                     heap.Push(pqueue, PriorityPoint{dist2, ngb})
                 }
             }
@@ -632,20 +634,15 @@ func evaluate(board *[H][W]int, src, dest Point) int {
 
     for point, pid := range sources {
         if pid == mid {
-            board_fill[point.y][point.x] = 0
-
             var nc = neighbors_count(board, point)
             switch nc {
-                case 3: nc = 6
-                case 4: nc = 7
+                case 2: nc = 14
+                case 3: nc = 18
+                case 4: nc = 20
             }
             counter[cc.cc_cid(point)] += nc
-
-        } else {
-            board_fill[point.y][point.x] = pid
         }
     }
-    // debug_board(&board_fill)
 
     var score int
     for _, value := range counter {
@@ -653,8 +650,6 @@ func evaluate(board *[H][W]int, src, dest Point) int {
             score = value
         }
     }
-
-    score = score * dm_bfs_start(&board_fill, src)
     return score
 }
 
@@ -732,7 +727,6 @@ func select_head(board *[H][W]int, src Point) []int {
     }
 
     var heads_d = sortByValue(head_dists)
-    // heads_d = append(heads_d, board[src.y][src.x])
     return heads_d
 }
 func head_min(board *[H][W]int, src Point, out chan Move) {
@@ -816,7 +810,7 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
         alpha, beta = scores[0], scores[scores.Len()-1]
         // debug(n, "alpha:", alpha, "beta:", beta)
 
-        if float64(alpha) < float64(beta) * 0.11 {
+        if n == 0 && float64(alpha) < float64(beta) * 0.11 {
             if len(move_dirs) == 2 {
                 break
             } else {
@@ -862,114 +856,6 @@ func dm_dfs_start(board *[H][W]int, src Point) int {
     // debug_board(&board_bc)
     var visited = map[Point]bool{}
     var count = dm_dfs(board, src, visited, true)
-    return count
-}
-
-func dm_bfs(board *[H][W]int, src Point, cc CC) int {
-    pqueue := &PointQueue{}
-    heap.Init(pqueue)
-    heap.Push(pqueue, PriorityPoint{0, src})
-
-    var count int
-    var best_score int
-    var cid_count = map[int]int{}
-
-    for pqueue.Len() > 0 {
-        var ppoint = heap.Pop(pqueue).(PriorityPoint)
-        var next = ppoint.point
-
-        var neighbors = neighbors(next)
-        var ngb_value, ngb_count int
-
-        for _, ngb := range neighbors {
-            var value = board[ngb.y][ngb.x]
-            if value == -1 || value == -2 {
-                ngb_value += value * value
-            }
-            if value == -1 {
-                ngb_count += 1
-            }
-        }
-
-        var ngb_distinct bool
-        if ngb_value == 2 || ngb_value == 6 {
-            var ngb_one = []Point{}
-            for _, ngb := range neighbors {
-                var value = board[ngb.y][ngb.x]
-                if value == -1 {
-                    ngb_one = append(ngb_one, ngb)
-                }
-            }
-            var ngb0, ngb1 = ngb_one[0], ngb_one[1]
-            if ngb0.x == ngb1.x || ngb0.y == ngb1.y {
-                ngb_distinct = true
-            }
-        }
-
-        for _, ngb := range neighbors {
-            var value = board[ngb.y][ngb.x]
-            if value == 0 {
-                count += 1
-                board[ngb.y][ngb.x] = count
-                heap.Push(pqueue, PriorityPoint{count, ngb})
-
-                if ngb_distinct {
-                    cid_count[cc.cc_cid(ngb)] += 1
-                } else {
-                    cid_count[1] += 1
-                }
-
-            } else if value == -1 {
-                board[ngb.y][ngb.x] = -2
-                var score = 1 + dm_bfs(board, ngb, cc)
-
-                if !ngb_distinct {
-                    if score > best_score {
-                        best_score = score
-                    }
-                } else if ngb_value != 1 && ngb_value != 3 && ngb_value != 7 {
-                    best_score += score
-                } else if score > best_score {
-                    best_score = score
-                }
-            }
-        }
-    }
-    // debug(src, cid_count, best_score)
-    if len(cid_count) > 1 {
-        count = best_score
-        for _, score := range cid_count {
-            if score > count {
-                count = score
-            }
-        }
-    } else {
-        count += best_score
-    }
-    return count
-}
-func dm_bfs_start(board *[H][W]int, src Point) int {
-    var bc = bc_init(board, src)
-    var board_bc = *board
-    for _, point := range bc.articulations {
-        if point != src {
-            board_bc[point.y][point.x] = -1
-        } else {
-            return 1 + dm_max(board, src, 0)
-        }
-    }
-    // debug_board(&board_bc)
-
-    var cc = cc_init(&board_bc)
-    // board_cc := board_bc
-    // for point, cid := range cc.ccid {
-        // board_cc[point.y][point.x] = cid
-    // }
-    // debug_board(&board_cc)
-
-    var count = dm_bfs(&board_bc, src, cc)
-    // debug_board(&board_bc)
-    // debug(src, count, time.Since(START))
     return count
 }
 
