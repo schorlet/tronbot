@@ -15,10 +15,10 @@ import (
 var _ = strings.Repeat
 
 const (
-    // ID_START int = 10001
-    // W, H int = 30, 20
-    W, H int = 10, 10
-    ID_START int = 1001
+    ID_START int = 10001
+    W, H int = 30, 20
+    // W, H int = 10, 10
+    // ID_START int = 1001
     MAX_DURATION time.Duration = 90 * time.Millisecond
 )
 
@@ -600,7 +600,7 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 
 func evaluate(board *[H][W]int, src, dest Point) int {
     var sources = map[Point]int{}
-    var distances = map[Point]int{}
+    var frontier = map[Point]bool{}
 
     var cc = cc_init(board)
     var board_fill = *board
@@ -620,7 +620,7 @@ func evaluate(board *[H][W]int, src, dest Point) int {
             continue
         }
 
-        pqueue := &PointQueue{}
+        var pqueue = &PointQueue{}
         heap.Init(pqueue)
         heap.Push(pqueue, PriorityPoint{0, pos})
 
@@ -641,34 +641,111 @@ func evaluate(board *[H][W]int, src, dest Point) int {
                 if value == 0 || dist2 < value {
                     board_fill[ngb.y][ngb.x] = dist2
                     sources[ngb] = pid
-                    distances[ngb] = dist2
                     heap.Push(pqueue, PriorityPoint{dist2, ngb})
+
+                } else if pid == mid && dist2 >= value {
+                    if tid, ok := sources[ngb]; ok && tid != pid {
+                        frontier[ngb] = true
+                    }
                 }
             }
         }
     }
 
-    var counter = map[int]int{}
 
     for point, pid := range sources {
         if pid == mid {
-            var nc = neighbors_count(board, point)
-            switch nc {
-                case 2: nc = 14
-                case 3: nc = 18
-                case 4: nc = 20
-            }
-            // var nc = 1
-            counter[cc.cc_cid(point)] += nc
+            board_fill[point.y][point.x] = 0
+        } else if frontier[point] {
+            board_fill[point.y][point.x] = 0
+        } else {
+            board_fill[point.y][point.x] = sources[point]
         }
     }
 
-    var score int
-    for _, value := range counter {
-        if value > score {
-            score = value
+    var bc = bc_init(&board_fill, src)
+    for _, point := range bc.articulations {
+        board_fill[point.y][point.x] = 1
+    }
+    var cc2 = cc_init(&board_fill)
+
+    var counter_cc = map[int]int{}
+    var counter_cc2 = map[int]int{}
+    var rel_cc = map[int]int{}
+
+
+    for point, pid := range sources {
+        if pid == mid {
+            // var nc = neighbors_count(board, point)
+            // switch nc {
+                // case 2: nc = 14
+                // case 3: nc = 18
+                // case 4: nc = 20
+            // }
+            var nc = 1
+            counter_cc[cc.cc_cid(point)] += nc
+            counter_cc2[cc2.cc_cid(point)] += nc
+            rel_cc[cc2.cc_cid(point)] = cc.cc_cid(point)
         }
     }
+
+    // debug("counter_cc", counter_cc)
+    // debug("counter_cc2", counter_cc2)
+    // debug("rel_cc", rel_cc)
+    // debug_board(&board_fill)
+
+    var score int
+    if len(counter_cc) == 1 {
+        for _, value := range counter_cc2 {
+            score += value
+        }
+        if len(frontier) == 0 {
+            score = int(float64(score) * 0.9)
+        }
+    } else {
+        var frontier_cids = map[int]bool{}
+        for point := range frontier {
+            var cid = cc2.cc_cid(point)
+            if !frontier_cids[cid] {
+                frontier_cids[cid] = true
+                var value = counter_cc2[cid]
+                counter_cc2[cid] = int(float64(value) * 1.2)
+            }
+        }
+        counter_cc = map[int]int{}
+        for cid, value := range counter_cc2 {
+            var rel = rel_cc[cid]
+            counter_cc[rel] += value
+        }
+        for _, value := range counter_cc {
+            if value > score {
+                score = value
+            }
+        }
+    }
+
+    // var bc = bc_init(board, src)
+    // for point, pid := range sources {
+        // if pid == mid {
+            // var nc = neighbors_count(board, point)
+            // switch nc {
+                // case 2: nc = 15
+                // case 3: nc = 19
+                // case 4: nc = 20
+            // }
+            // if bc.bc_point(point) {
+                // nc -= 2
+            // }
+            // counter[cc.cc_cid(point)] += nc
+        // }
+    // }
+    // var score int
+    // for _, value := range counter {
+        // if value > score {
+            // score = value
+        // }
+    // }
+
     // debug("        evaluate", src, score)
     return score
 }
