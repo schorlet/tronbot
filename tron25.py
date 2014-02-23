@@ -49,7 +49,6 @@ def next_pos(x, y, move):
     a, b = move
     return x + a, y + b
 
-
 def neighbors(board, x, y):
     neighbors = []
     for (xx, yy) in (next_pos(x, y, UP),   next_pos(x, y, RIGHT),
@@ -57,7 +56,6 @@ def neighbors(board, x, y):
         if in_board(xx, yy):
             neighbors.append((xx, yy))
     return neighbors
-
 
 def neighbors_clean(board, x, y):
     neighbors = []
@@ -67,6 +65,13 @@ def neighbors_clean(board, x, y):
             neighbors.append((xx, yy))
     return neighbors
 
+def neighbors_count(board, x, y):
+    count = 0
+    for (xx, yy) in (next_pos(x, y, UP),   next_pos(x, y, RIGHT),
+                     next_pos(x, y, DOWN), next_pos(x, y, LEFT)):
+        if is_clean(board, xx, yy):
+            count += 1
+    return count
 
 def neighbors_clean_heads(board, x, y):
     neighbors = []
@@ -83,7 +88,6 @@ def moves_clean(board, x, y):
             if is_clean(board, *next_pos(x, y, move))]
     return moves
 
-
 def max_move(x, y, move):
     a, b = move
     c, d = next_pos(x, y, move)
@@ -93,47 +97,28 @@ def max_move(x, y, move):
         c, d = next_pos(c, d, move)
     return count
 
-
 def guess_moves(x, y, c, d):
     a, b = c - x, d - y
     if a == 0: return (0, b)
     elif b == 0: return (a, 0)
     return (0, b), (a, 0)
 
+def distance1(x, y, c, d):
+    return abs(x - c) + abs(y - d)
 
-def fill_board(board, heads, me):
-    sources = dict()
+def distance2(x, y, c, d):
+    return 10 * (abs(x - c)**2 + abs(y - d)**2)
 
-    pids = heads.items()
-    pids.append(me)
+def distance3(x, y, c, d):
+    return 33 * (abs(x - c)**2 + abs(y - d)**2)**0.5
 
-    board_fill = copy.deepcopy(board)
+def distance4(x, y, c, d):
+    return max(abs(x - c), abs(y - d))
 
-    for pid, pos in pids:
-        px, py = pos
-        points = [(0, pos)]
-        heapq.heapify(points)
-        count = 0
-
-        while points:
-            dist, point = heapq.heappop(points)
-            for (xx, yy) in neighbors_clean(board, *point):
-                value = board_fill[yy][xx]
-
-                dist2 = distance1(px, py, xx, yy)
-                if dist2 <= dist: dist2 = dist + 1
-
-                if value == 0 or dist2 < value:
-                    board_fill[yy][xx] = dist2
-                    sources[(xx, yy)] = pid
-                    heapq.heappush(points, (dist2, (xx, yy)))
-                    count += 1
-            if count > 300:
-                break
-
-    values = sources.values()
-    counter = dict((pid, values.count(pid)) for pid, _ in pids)
-    return counter
+def directions(x, y):
+    dx = (   0 if x == 0 else 1 if x > 0 else -1 , 0)
+    dy = (0, 0 if y == 0 else 1 if y > 0 else -1)
+    return dx, dy
 
 
 def flood_find(x, y):
@@ -148,9 +133,9 @@ def flood_find(x, y):
         for (xx, yy) in neighbors_clean_heads(board_copy, *point):
             value = board_copy[yy][xx]
             if value == 0:
-                board_copy[yy][xx] = 1
-                points.append((xx, yy))
                 count += 1
+                board_copy[yy][xx] = count
+                points.append((xx, yy))
 
             elif not value in HEADS_F:
                 HEADS_F[value] = directions(xx - x, yy - y)
@@ -158,8 +143,6 @@ def flood_find(x, y):
                     points = None
                     break
     return count
-
-
 def flood_count(board, x, y):
     board_copy = copy.deepcopy(board)
     points = deque([(x, y)])
@@ -207,10 +190,10 @@ def default_move(x, y):
             best_scores[move] = min(best_scores[move], dm_move(c, d, i))
             board_copy[d][c] = 0
 
-    print >> sys.stderr, 'default_move:',
-    for move, score in best_scores.items():
-        print >> sys.stderr, DIR[move], '%.2f' % score, ';',
-    print >> sys.stderr
+    # print >> sys.stderr, 'default_move:',
+    # for move, score in best_scores.items():
+        # print >> sys.stderr, DIR[move], '%.2f' % score, ';',
+    # print >> sys.stderr
 
     best_dirs = best_scores.keys()
     best_dirs.sort(key=lambda x: best_scores[x], reverse=True)
@@ -270,7 +253,7 @@ def default_move(x, y):
                     board_copy[d][c] = 0
                 board_copy[b][a] = 0
 
-            print >> sys.stderr, 'default_move', best_scores
+            # print >> sys.stderr, 'default_move', best_scores
             best_dirs.sort(key=lambda x: best_scores[x])
             best_move = best_dirs[0]
 
@@ -300,35 +283,55 @@ def __best_dest(x, y, hx, hy):
                 board_copy[yy][xx] = value2
                 heapq.heappush(points, (value2, points2 + [(xx, yy)]))
     return path
-
-
 def best_dest(x, y, hx, hy):
     path = __best_dest(x, y, hx, hy)
     if path:
         a, b = path[1]
         move = (a - x, b - y)
-        print >> sys.stderr, 'best_dest', DIR[move], time() - START
+        # print >> sys.stderr, 'best_dest', DIR[move], time() - START
         return move, path[1:-1]
     return None, None
 
 
-def distance1(x, y, c, d):
-    return abs(x - c) + abs(y - d)
+def fill_board(board, heads, me):
+    sources = dict()
+    pids = heads.items()
+    pids.append(me)
 
-def distance2(x, y, c, d):
-    return 10 * (abs(x - c)**2 + abs(y - d)**2)
+    board_fill = copy.deepcopy(board)
 
-def distance3(x, y, c, d):
-    return 33 * (abs(x - c)**2 + abs(y - d)**2)**0.5
+    for pid, pos in pids:
+        px, py = pos
+        points = [(0, pos)]
+        heapq.heapify(points)
 
-def distance4(x, y, c, d):
-    return max(abs(x - c), abs(y - d))
+        while points:
+            dist, point = heapq.heappop(points)
+            for (xx, yy) in neighbors_clean(board, *point):
+                value = board_fill[yy][xx]
 
+                dist2 = distance1(px, py, xx, yy)
+                if dist2 <= dist: dist2 = dist + 1
 
-def directions(x, y):
-    dx = (   0 if x == 0 else 1 if x > 0 else -1 , 0)
-    dy = (0, 0 if y == 0 else 1 if y > 0 else -1)
-    return dx, dy
+                if value == 0 or dist2 < value:
+                    board_fill[yy][xx] = dist2
+                    sources[(xx, yy)] = pid
+                    heapq.heappush(points, (dist2, (xx, yy)))
+
+    values = sources.values()
+    counter = dict((pid, values.count(pid)) for pid, _ in pids)
+    return counter
+
+def evaluate(board, x, y, px, py):
+    heads = dict((pid, HEADS[pid]) for pid in HEADS_F)
+    mid = board[y][x]
+    pid = board[py][px]
+    heads[pid] = (px, py)
+    me = (mid, (x, y))
+    counter = fill_board(board, heads, me)
+    if counter[pid] == 0: counter[pid] = 1
+    score = 1.0 * counter[mid]**2 / counter[pid]
+    return score
 
 
 def max_play(board, x, y, px, py, alpha, beta, n):
@@ -358,7 +361,6 @@ def max_play(board, x, y, px, py, alpha, beta, n):
 
     return best_score
 
-
 def min_play(board, x, y, px, py, alpha, beta, n):
     best_score = sys.maxint
 
@@ -387,17 +389,6 @@ def min_play(board, x, y, px, py, alpha, beta, n):
     return best_score
 
 
-def evaluate(board, x, y, px, py):
-    heads = dict((pid, HEADS[pid]) for pid in HEADS_F)
-    mid = board[y][x]
-    pid = board[py][px]
-    heads[pid] = (px, py)
-    counter = fill_board(board, heads, (mid, (x, y)))
-    if counter[pid] == 0: counter[pid] = 1
-    score = 1.0 * counter[mid]**2 / counter[pid]
-    return score
-
-
 def head_min(x, y):
     flood_find(x, y)
     if len(HEADS_F) == 0:
@@ -422,13 +413,14 @@ def head_min(x, y):
 
     px, py = HEADS[head0]
     dirs = tuple(e for e in HEADS_F[head0] if e != END)
-    print >> sys.stderr, 'PID', head0, [DIR[dir] for dir in dirs], (px, py)
+    # print >> sys.stderr, 'PID', head0, [DIR[dir] for dir in dirs], (px, py)
 
     best_scores = dict((move, ~sys.maxint) for move in move_dirs)
     board = copy.deepcopy(BOARD)
     best_move = None
 
-    for n in range(2):
+    m = 2 if len(move_dirs) < 4 else 1
+    for n in range(m):
         for move in move_dirs:
             c, d = next_pos(x, y, move)
             board[d][c] = board[y][x]
@@ -446,7 +438,8 @@ def head_min(x, y):
         scores = set(best_scores.values())
         alpha, beta = min(scores), max(scores)
 
-        if time() - START > 0.08:
+        # print >> sys.stderr, best_scores
+        if time() - START > 0.04:
             break
 
     move_dirs.sort(key=lambda x: best_scores[x], reverse=True)
@@ -483,12 +476,11 @@ def head_min(x, y):
 
     return best_move
 
-
 def best_move_fast(x, y):
     move = head_min(x, y)
     if move is None: move = default_move(x, y)
     if move is None: move = END
-    print >> sys.stderr, DIR[move], time() - START
+    # print >> sys.stderr, DIR[move], time() - START
     return move
 
 
