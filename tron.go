@@ -20,6 +20,7 @@ const (
     // W, H int = 10, 10
     // ID_START int = 1001
     MAX_DURATION time.Duration = 90 * time.Millisecond
+    SLEEP_DURATION time.Duration = 2 * time.Millisecond
 )
 
 var (
@@ -85,7 +86,7 @@ type (
         dfn           map[Point]int
         low           map[Point]int
         num           int
-        articulations []Point
+        articulations map[Point]bool
     }
 
     CC  struct {
@@ -99,14 +100,8 @@ type (
 
 
 func (bc *BC) bc_point(src Point) bool {
-    var found bool
-    for _, point := range bc.articulations {
-        if point == src {
-            found = true
-            break
-        }
-    }
-    return found
+    var value, found = bc.articulations[src]
+    return found && value
 }
 func (bc *BC) bc_dfs(check, parent Point) {
     var child_count int
@@ -119,12 +114,14 @@ func (bc *BC) bc_dfs(check, parent Point) {
         if bc.dfn[ngb] == 0 {
             child_count += 1
             bc.bc_dfs(ngb, check)
+
+            // update low number
             if bc.low[check] > bc.low[ngb] {
                 bc.low[check] = bc.low[ngb]
             }
 
-            if parent != bc.src && bc.low[ngb] > bc.dfn[check] {
-                bc.articulations = append(bc.articulations, check)
+            if parent != bc.src && bc.low[ngb] >= bc.dfn[check] {
+                bc.articulations[check] = true
                 // debug("Articulation point ", check, "dfn=", bc.dfn[check],
                 // "low=", bc.low[ngb])
             }
@@ -135,13 +132,14 @@ func (bc *BC) bc_dfs(check, parent Point) {
         }
     }
     if parent == bc.src && child_count > 1 {
-        bc.articulations = append(bc.articulations, check)
+        bc.articulations[check] = true
     }
 }
 func bc_init(board *[H][W]int, src Point) BC {
-    bc := BC{src: src, board: board,
-        dfn: map[Point]int{}, low: map[Point]int{},
-        num: 0, articulations: []Point{}}
+    var dfn, low = map[Point]int{}, map[Point]int{}
+    var articulations = map[Point]bool{}
+    var bc = BC{src: src, board: board, dfn: dfn, low: low,
+            num: 0, articulations: articulations}
     bc.bc_dfs(src, src)
     return bc
 }
@@ -168,15 +166,35 @@ func (cc *CC) cc_connected(pos0, pos1 Point) bool {
     return connected
 }
 func (cc *CC) cc_cid(pos Point) int {
-    return cc.ccid[pos]
+    var cid = cc.ccid[pos]
+    if cid > 0 {
+        return cid
+    }
+    var cidmap = map[int]bool{}
+    var neighbors = neighbors_clean(cc.board, pos)
+    for _, ngb := range neighbors {
+        cid = cc.ccid[ngb]
+        if cid > 0 && !cidmap[cid] {
+            cidmap[cid] = true
+        }
+    }
+    var score int
+    for tid := range cidmap {
+        var count = cc.cc_cid_count(tid)
+        if score < count {
+            score = count
+            cid = tid
+        }
+    }
+    return cid
 }
 func (cc *CC) cc_cids(pos Point) map[int]bool {
     var cid = cc.ccid[pos]
     if cid > 0 {
         return map[int]bool{cid: true}
     }
-    cidmap := map[int]bool{}
-    neighbors := neighbors_clean(cc.board, pos)
+    var cidmap = map[int]bool{}
+    var neighbors = neighbors_clean(cc.board, pos)
     for _, ngb := range neighbors {
         cid = cc.ccid[ngb]
         if cid > 0 && !cidmap[cid] {
@@ -193,7 +211,7 @@ func (cc *CC) cc_dfs(src Point) {
     cc.ccid[src] = cc.cid + 1
     cc.cid_count[cc.cid+1] += 1
 
-    neighbors := neighbors_clean(cc.board, src)
+    var neighbors = neighbors_clean(cc.board, src)
     for _, ngb := range neighbors {
         if cc.visited[ngb] {
             continue
@@ -202,8 +220,10 @@ func (cc *CC) cc_dfs(src Point) {
     }
 }
 func cc_init(board *[H][W]int) CC {
-    cc := CC{board: board, visited: map[Point]bool{},
-        ccid: map[Point]int{}, cid_count: map[int]int{}}
+    var visited = map[Point]bool{}
+    var ccid = map[Point]int{}
+    var cid_count = map[int]int{}
+    var cc = CC{board: board, visited: visited, ccid: ccid, cid_count: cid_count}
     for y := 0; y < H; y++ {
         for x := 0; x < W; x++ {
             if board[y][x] != 0 {
@@ -600,7 +620,7 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 
 func evaluate(board *[H][W]int, src, dest Point) int {
     var sources = map[Point]int{}
-    var frontier = map[Point]bool{}
+    var connection bool
 
     var cc = cc_init(board)
     var board_fill = *board
@@ -614,8 +634,10 @@ func evaluate(board *[H][W]int, src, dest Point) int {
             pos = src
         } else if pid == hid && cc.cc_connected(src, dest) {
             pos = dest
+            connection = true
         } else if cc.cc_connected(src, HEADS[pid]) {
             pos = HEADS[pid]
+            connection = true
         } else {
             continue
         }
@@ -642,110 +664,35 @@ func evaluate(board *[H][W]int, src, dest Point) int {
                     board_fill[ngb.y][ngb.x] = dist2
                     sources[ngb] = pid
                     heap.Push(pqueue, PriorityPoint{dist2, ngb})
-
-                } else if pid == mid && dist2 >= value {
-                    if tid, ok := sources[ngb]; ok && tid != pid {
-                        frontier[ngb] = true
-                    }
                 }
             }
         }
     }
-
-
+    var counter = map[int]int{}
+    var bc = bc_init(board, src)
     for point, pid := range sources {
         if pid == mid {
-            board_fill[point.y][point.x] = 0
-        } else if frontier[point] {
-            board_fill[point.y][point.x] = 0
-        } else {
-            board_fill[point.y][point.x] = sources[point]
+            var nc = neighbors_count(board, point)
+            switch nc {
+                case 2: nc = 14
+                case 3: nc = 18
+                case 4: nc = 20
+            }
+            if bc.bc_point(point) {
+                nc -= 2
+            }
+            counter[cc.ccid[point]] += nc
         }
     }
-
-    var bc = bc_init(&board_fill, src)
-    for _, point := range bc.articulations {
-        board_fill[point.y][point.x] = 1
-    }
-    var cc2 = cc_init(&board_fill)
-
-    var counter_cc = map[int]int{}
-    var counter_cc2 = map[int]int{}
-    var rel_cc = map[int]int{}
-
-
-    for point, pid := range sources {
-        if pid == mid {
-            // var nc = neighbors_count(board, point)
-            // switch nc {
-                // case 2: nc = 14
-                // case 3: nc = 18
-                // case 4: nc = 20
-            // }
-            var nc = 1
-            counter_cc[cc.cc_cid(point)] += nc
-            counter_cc2[cc2.cc_cid(point)] += nc
-            rel_cc[cc2.cc_cid(point)] = cc.cc_cid(point)
-        }
-    }
-
-    // debug("counter_cc", counter_cc)
-    // debug("counter_cc2", counter_cc2)
-    // debug("rel_cc", rel_cc)
-    // debug_board(&board_fill)
-
     var score int
-    if len(counter_cc) == 1 {
-        for _, value := range counter_cc2 {
-            score += value
-        }
-        if len(frontier) == 0 {
-            score = int(float64(score) * 0.9)
-        }
-    } else {
-        var frontier_cids = map[int]bool{}
-        for point := range frontier {
-            var cid = cc2.cc_cid(point)
-            if !frontier_cids[cid] {
-                frontier_cids[cid] = true
-                var value = counter_cc2[cid]
-                counter_cc2[cid] = int(float64(value) * 1.2)
-            }
-        }
-        counter_cc = map[int]int{}
-        for cid, value := range counter_cc2 {
-            var rel = rel_cc[cid]
-            counter_cc[rel] += value
-        }
-        for _, value := range counter_cc {
-            if value > score {
-                score = value
-            }
+    for _, value := range counter {
+        if value > score {
+            score = value
         }
     }
-
-    // var bc = bc_init(board, src)
-    // for point, pid := range sources {
-        // if pid == mid {
-            // var nc = neighbors_count(board, point)
-            // switch nc {
-                // case 2: nc = 15
-                // case 3: nc = 19
-                // case 4: nc = 20
-            // }
-            // if bc.bc_point(point) {
-                // nc -= 2
-            // }
-            // counter[cc.cc_cid(point)] += nc
-        // }
-    // }
-    // var score int
-    // for _, value := range counter {
-        // if value > score {
-            // score = value
-        // }
-    // }
-
+    if !connection {
+        score = 2 * score / 3
+    }
     // debug("        evaluate", src, score)
     return score
 }
@@ -768,6 +715,7 @@ func max_play(board *[H][W]int, next Point, dest Point,
 
     var score int
     for _, ngb := range neighbors {
+        runtime.Gosched()
         board[ngb.y][ngb.x] = board[next.y][next.x]
         if n == 0 {
             score = evaluate(board, ngb, dest)
@@ -780,10 +728,10 @@ func max_play(board *[H][W]int, next Point, dest Point,
             best_score = score
         }
 
-        // alpha = int(math.Max(float64(alpha), float64(score)))
-        // if beta <= alpha {
-            // break
-        // }
+        alpha = int(math.Max(float64(alpha), float64(score)))
+        if beta <= alpha {
+            break
+        }
     }
 
     return best_score
@@ -806,6 +754,7 @@ func min_play(board *[H][W]int, next Point, dest Point,
 
     var score int
     for _, ngb := range neighbors {
+        runtime.Gosched()
         board[ngb.y][ngb.x] = board[dest.y][dest.x]
         if n == 0 {
             score = evaluate(board, next, ngb)
@@ -818,10 +767,10 @@ func min_play(board *[H][W]int, next Point, dest Point,
             best_score = score
         }
 
-        // beta = int(math.Min(float64(beta), float64(score)))
-        // if beta <= alpha {
-            // break
-        // }
+        beta = int(math.Min(float64(beta), float64(score)))
+        if beta <= alpha {
+            break
+        }
     }
 
     return best_score
@@ -870,7 +819,11 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
     var alpha, beta = math.MinInt32, math.MaxInt32
     var score int
 
-    for n := 0; n < 2; n++ {
+    var m = 2
+    if len(move_dirs) == 4 {
+        m = 1
+    }
+    for n := 0; n < m; n++ {
         var wg sync.WaitGroup
 
         for _, move := range move_dirs {
@@ -896,8 +849,7 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
 
                 board_calcul[next.y][next.x] = board_calcul[src.y][src.x]
                 if n == 0 {
-                    // score = evaluate(board_calcul, next, dest)
-                    score = min_play(board_calcul, next, dest, alpha, beta, n)
+                    score = evaluate(board_calcul, next, dest)
                 } else {
                     score = min_play(board_calcul, next, dest, alpha, beta, n)
                 }
@@ -912,25 +864,17 @@ func head_min(board *[H][W]int, src Point, out chan Move) {
         debug("minimax", best_scores)
         sort.Sort(ByScoreI{move_dirs, best_scores})
         out <- move_dirs[0]
+        runtime.Gosched()
 
-        var scores = sort.IntSlice{}
-        for _, score := range best_scores {
-            scores = append(scores, score)
+        if n == 0 {
+            var scores = sort.IntSlice{}
+            for _, score := range best_scores {
+                scores = append(scores, score)
+            }
+            sort.Sort(scores)
+            alpha, beta = scores[0], scores[scores.Len()-1]
+            // debug(n, "alpha:", alpha, "beta:", beta)
         }
-        sort.Sort(scores)
-        alpha, beta = scores[0], scores[scores.Len()-1]
-        // debug(n, "alpha:", alpha, "beta:", beta)
-
-        // if n == 0 && float64(alpha) < float64(beta)*0.11 {
-            // if len(move_dirs) == 2 {
-                // break
-            // } else {
-                // var bad_move = move_dirs[len(move_dirs)-1]
-                // delete(best_scores, bad_move)
-                // move_dirs = move_dirs[0 : len(move_dirs)-1]
-                // alpha = scores[1] - alpha
-            // }
-        // }
     }
 }
 
@@ -959,7 +903,7 @@ func dm_dfs(board *[H][W]int, src Point, visited map[Point]bool, isbc bool) int 
 func dm_dfs_start(board *[H][W]int, src Point) int {
     // var bc = bc_init(board, src)
     // var board_bc = *board
-    // for _, point := range bc.articulations {
+    // for point := range bc.articulations {
     // if point != src {
     // board_bc[point.y][point.x] = -1
     // }
@@ -1054,9 +998,7 @@ func default_move(board *[H][W]int, src Point) Move {
 }
 
 func best_move_fast(board [H][W]int, src Point) Move {
-    var max_delay = time.After(MAX_DURATION)
     var best_move Move
-
     var channel = make(chan Move, 1)
     go head_min(&board, src, channel)
 
@@ -1067,8 +1009,11 @@ func best_move_fast(board [H][W]int, src Point) Move {
                 channel = nil
                 best_move = default_move(&board, src)
             }
-        case <-max_delay:
-            channel = nil
+        default:
+            time.Sleep(SLEEP_DURATION)
+            if time.Since(START) > MAX_DURATION {
+                channel = nil
+            }
         }
     }
     // debug(time.Since(START))
@@ -1076,11 +1021,11 @@ func best_move_fast(board [H][W]int, src Point) Move {
 }
 
 func main() {
-    runtime.GOMAXPROCS(runtime.NumCPU())
+    // runtime.GOMAXPROCS(runtime.NumCPU())
     for {
-        src := read_stdin()
+        var src = read_stdin()
         START = time.Now()
-        move := best_move_fast(BOARD, src)
+        var move = best_move_fast(BOARD, src)
         fmt.Println(move)
     }
 }
