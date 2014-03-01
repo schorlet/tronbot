@@ -14,10 +14,10 @@ import (
 var _ = strings.Repeat
 
 const (
-    ID_START int = 10001
-    W, H int = 30, 20
-    // W, H int = 10, 10
-    // ID_START int = 1001
+    // ID_START int = 10001
+    // W, H int = 30, 20
+    W, H int = 10, 10
+    ID_START int = 1001
     MAX_DURATION time.Duration = 90 * time.Millisecond
     MID_DURATION time.Duration = 40 * time.Millisecond
 )
@@ -620,6 +620,9 @@ func best_dest(board [H][W]int, src, dest Point) (Move, []Point) {
 func evaluate(board *[H][W]int, src, dest Point) int {
     var sources = map[Point]int{}
     var connection bool
+    var distances1 = map[Point]int{}
+    var distances2 = map[Point]int{}
+    var mid_dist = distance1(dest, src)
 
     var cc = cc_init(board)
     var board_fill = *board
@@ -661,31 +664,42 @@ func evaluate(board *[H][W]int, src, dest Point) int {
 
                 if value == 0 || dist2 < value {
                     board_fill[ngb.y][ngb.x] = dist2
-                    sources[ngb] = pid
                     heap.Push(pqueue, PriorityPoint{dist2, ngb})
-
-                // } else if pid == mid && dist2 == value {
-                    // sources[ngb] = pid
+                    if pid == mid {
+                        sources[ngb] = pid
+                        distances1[ngb] = distance1(dest, ngb)
+                        distances2[ngb] = dist2
+                    }
                 }
             }
         }
     }
     var counter = map[int]int{}
-    // var bc = bc_init(board, src)
-    for point, pid := range sources {
-        if pid == mid {
-            var nc = neighbors_count(board, point)
-            switch nc {
-                case 2: nc = 6
-                case 3: nc = 18
-                case 4: nc = 20
-            }
-            // if bc.bc_point(point) {
-                // nc -= 2
-            // }
-            counter[cc.ccid[point]] += nc
+    for point := range sources {
+        var nc = neighbors_count(board, point)
+        switch nc {
+            case 1: nc = 0
+            case 2: nc = 6
+            case 3: nc = 18
+            case 4: nc = 20
         }
+        if distances2[point] > mid_dist {
+            nc += 3
+        } else {
+            if distances1[point] < mid_dist {
+                nc -= 3
+            } else {
+                nc += 1
+            }
+        }
+        // if distances2[point] > mid_dist {
+            // nc += 2
+        // }
+        counter[cc.ccid[point]] += nc
+        // board_fill[point.y][point.x] = nc
     }
+    // debug(mid_dist)
+    // debug_board(&board_fill)
     var score int
     for _, value := range counter {
         if value > score {
@@ -868,6 +882,9 @@ func head_min(board *[H][W]int, src Point) Move {
             }
             sort.Sort(scores)
             alpha, beta = scores[0], scores[scores.Len()-1]
+            if alpha == beta {
+                alpha = 0
+            }
             // debug(n, "alpha:", alpha, "beta:", beta)
         }
     }
